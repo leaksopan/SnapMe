@@ -713,7 +713,7 @@ const Kasir = ({ user, onLogout, sidebarOpen }) => {
                       gap: '6px',
                       marginBottom: '6px'
                     }}>
-                      {[25000, 50000, 100000, 200000, 500000].map(amount => (
+                      {[5000, 10000, 25000, 50000, 100000, 200000, 500000].map(amount => (
                         <button
                           key={amount}
                           type="button"
