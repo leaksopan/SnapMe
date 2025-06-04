@@ -18,6 +18,8 @@ const Dashboard = ({ user, onLogout }) => {
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [showCustomPicker, setShowCustomPicker] = useState(false);
+  const [isRealTimeConnected, setIsRealTimeConnected] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState(new Date());
 
   // Format rupiah
   const formatRupiah = (num) => {
@@ -100,6 +102,7 @@ const Dashboard = ({ user, onLogout }) => {
 
   // Load dashboard data - menggunakan useCallback untuk mengatasi ESLint warning
   const loadDashboardData = useCallback(async () => {
+    console.time('⚡ Dashboard Data Load');
     setLoading(true);
     try {
       const dateRange = getDateRange(selectedPeriod);
@@ -294,11 +297,16 @@ const Dashboard = ({ user, onLogout }) => {
         employeeStats: topEmployees
       });
 
+      // Update last update timestamp when data successfully loaded
+      setLastUpdate(new Date());
+      console.log('✅ Dashboard data updated successfully');
+
     } catch (error) {
       console.error('❌ Dashboard: Error loading data:', error);
       alert('Gagal memuat data dashboard: ' + error.message);
     } finally {
       setLoading(false);
+      console.timeEnd('⚡ Dashboard Data Load');
     }
   }, [selectedPeriod, getDateRange, customStartDate, customEndDate]); // Dependencies untuk useCallback
 
@@ -306,6 +314,60 @@ const Dashboard = ({ user, onLogout }) => {
   useEffect(() => {
     loadDashboardData();
   }, [loadDashboardData]); // Sekarang menggunakan loadDashboardData dari useCallback
+
+  // Setup Supabase Realtime untuk auto-update
+  useEffect(() => {
+    console.log('🔌 Setting up Supabase Realtime...');
+    
+    // Subscribe to transactions table changes
+    const transactionSubscription = supabase
+      .channel('dashboard-transactions')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to INSERT, UPDATE, DELETE
+          schema: 'public',
+          table: 'transactions'
+        },
+        (payload) => {
+          console.log('🔄 Transaction change detected:', payload);
+          // Auto refresh dashboard data when transaction changes
+          setLastUpdate(new Date());
+          loadDashboardData();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to INSERT, UPDATE, DELETE
+          schema: 'public',
+          table: 'transaction_items'
+        },
+        (payload) => {
+          console.log('🔄 Transaction items change detected:', payload);
+          // Auto refresh dashboard data when transaction items change
+          setLastUpdate(new Date());
+          loadDashboardData();
+        }
+      )
+      .subscribe((status) => {
+        console.log('📡 Realtime subscription status:', status);
+        setIsRealTimeConnected(status === 'SUBSCRIBED');
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Dashboard Realtime connected successfully!');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Dashboard Realtime connection error');
+          setIsRealTimeConnected(false);
+        }
+      });
+
+    // Cleanup subscription on unmount
+    return () => {
+      console.log('🔌 Cleaning up Supabase Realtime subscription...');
+      supabase.removeChannel(transactionSubscription);
+      setIsRealTimeConnected(false);
+    };
+  }, [loadDashboardData]);
 
   // Handle period change
   const handlePeriodChange = (period) => {
@@ -506,6 +568,16 @@ const Dashboard = ({ user, onLogout }) => {
 
   return (
     <div className="App">
+      {/* CSS Animation for Pulse Effect */}
+      <style>
+        {`
+          @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+          }
+        `}
+      </style>
       <div className="container">
         {/* Header */}
         <div className="header">
@@ -674,8 +746,30 @@ const Dashboard = ({ user, onLogout }) => {
               color: '#7f8c8d',
               marginLeft: '10px'
             }}>
-              • Terakhir diperbarui: {new Date().toLocaleTimeString('id-ID')}
+              • Terakhir diperbarui: {lastUpdate.toLocaleTimeString('id-ID')}
             </span>
+            {/* Realtime Status Indicator */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              marginLeft: '10px',
+              padding: '4px 8px',
+              borderRadius: '12px',
+              background: isRealTimeConnected ? '#27ae60' : '#e74c3c',
+              color: 'white',
+              fontSize: '11px',
+              fontWeight: 'bold'
+            }}>
+              <div style={{
+                width: '6px',
+                height: '6px',
+                borderRadius: '50%',
+                background: 'white',
+                animation: isRealTimeConnected ? 'pulse 2s infinite' : 'none'
+              }}></div>
+              {isRealTimeConnected ? '⚡ LIVE' : '❌ OFFLINE'}
+            </div>
           </div>
         </div>
 
