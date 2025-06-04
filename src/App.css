@@ -6,7 +6,7 @@
 
 body {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #2563eb 0%, #1e40af 50%, #1e3a8a 100%);
   min-height: 100vh;
 }
 
@@ -20,7 +20,7 @@ body {
   margin: 0 auto;
   background: white;
   border-radius: 20px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 20px 40px rgba(37, 99, 235, 0.2);
   overflow: visible;
   margin: 20px;
   min-height: calc(100vh - 40px);
@@ -28,13 +28,13 @@ body {
 
 /* Header */
 .header {
-  background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+  background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
   color: white;
   padding: 20px 30px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 10px rgba(37, 99, 235, 0.3);
 }
 
 .header h1 {
@@ -61,7 +61,7 @@ body {
 }
 
 .logout-btn {
-  background: #e74c3c;
+  background: #dc2626;
   color: white;
   border: none;
   padding: 10px 20px;
@@ -72,7 +72,7 @@ body {
 }
 
 .logout-btn:hover {
-  background: #c0392b;
+  background: #b91c1c;
   transform: translateY(-2px);
 }
 
@@ -86,7 +86,7 @@ body {
 
 /* Left Panel - Items */
 .items-panel {
-  background: #f8f9fa;
+  background: #f8fafc;
   border-radius: 15px;
   padding: 25px;
   overflow-y: auto;
@@ -105,11 +105,11 @@ body {
 }
 
 .section h2 {
-  color: #2c3e50;
+  color: #1e3a8a;
   font-size: 1.3rem;
   margin-bottom: 15px;
   padding-bottom: 8px;
-  border-bottom: 3px solid #3498db;
+  border-bottom: 3px solid #2563eb;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -130,15 +130,15 @@ body {
   background: white;
   border-radius: 12px;
   padding: 20px;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 15px rgba(37, 99, 235, 0.1);
   transition: all 0.3s ease;
   border: 2px solid transparent;
 }
 
 .item-card:hover {
   transform: translateY(-3px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-  border-color: #3498db;
+  box-shadow: 0 8px 25px rgba(37, 99, 235, 0.2);
+  border-color: #2563eb;
 }
 
 .item-info {
@@ -150,12 +150,12 @@ body {
 
 .item-name {
   font-weight: 600;
-  color: #2c3e50;
+  color: #1e3a8a;
   font-size: 1rem;
 }
 
 .item-price {
-  color: #27ae60;
+  color: #0d9488;
   font-weight: 700;
   font-size: 1.1rem;
 }
@@ -163,7 +163,7 @@ body {
 .qty-input {
   width: 100%;
   padding: 12px;
-  border: 2px solid #ecf0f1;
+  border: 2px solid #e2e8f0;
   border-radius: 8px;
   font-size: 1rem;
   text-align: center;
@@ -172,8 +172,8 @@ body {
 
 .qty-input:focus {
   outline: none;
-  border-color: #3498db;
-  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
 /* Right Panel - Checkout */
@@ -181,7 +181,7 @@ body {
   background: white;
   border-radius: 15px;
   padding: 25px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 20px rgba(37, 99, 235, 0.1);
   height: fit-content;
   position: sticky;
   top: 20px;
@@ -191,17 +191,17 @@ body {
   text-align: center;
   margin-bottom: 25px;
   padding-bottom: 15px;
-  border-bottom: 2px solid #ecf0f1;
+  border-bottom: 2px solid #e2e8f0;
 }
 
 .checkout-header h3 {
-  color: #2c3e50;
+  color: #1e3a8a;
   font-size: 1.4rem;
   margin-bottom: 5px;
 }
 
 .date-display {
-  color: #7f8c8d;
+  color: #64748b;
   font-size: 0.9rem;
 }
 
@@ -216,7 +216,7 @@ body {
 .input-group label {
   display: block;
   margin-bottom: 8px;
-  color: #2c3e50;
+  color: #1e3a8a;
   font-weight: 600;
   font-size: 0.9rem;
 }
@@ -225,7 +225,7 @@ body {
 .input-group select {
   width: 100%;
   padding: 12px 15px;
-  border: 2px solid #ecf0f1;
+  border: 2px solid #e2e8f0;
   border-radius: 8px;
   font-size: 1rem;
   transition: all 0.3s ease;
@@ -234,18 +234,18 @@ body {
 .input-group input:focus,
 .input-group select:focus {
   outline: none;
-  border-color: #3498db;
-  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
 .total-section {
-  background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+  background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
   color: white;
   padding: 20px;
   border-radius: 12px;
   text-align: center;
   margin: 20px 0;
-  box-shadow: 0 4px 15px rgba(39, 174, 96, 0.3);
+  box-shadow: 0 4px 15px rgba(13, 148, 136, 0.25);
 }
 
 .total-section {
@@ -262,7 +262,7 @@ body {
 
 .generate-btn {
   width: 100%;
-  background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
   color: white;
   border: none;
   padding: 15px;
@@ -276,7 +276,7 @@ body {
 
 .generate-btn:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(52, 152, 219, 0.4);
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.4);
 }
 
 .generate-btn:disabled {
@@ -304,18 +304,21 @@ body {
 }
 
 .tools button:first-child {
-  background: #9b59b6;
+  background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
   color: white;
+  box-shadow: 0 4px 15px rgba(14, 165, 233, 0.25);
 }
 
 .tools button:nth-child(2) {
-  background: #f39c12;
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
   color: white;
+  box-shadow: 0 4px 15px rgba(245, 158, 11, 0.25);
 }
 
 .danger-btn {
-  background: #e74c3c !important;
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%) !important;
   color: white !important;
+  box-shadow: 0 4px 15px rgba(220, 38, 38, 0.3) !important;
 }
 
 .tools button:hover {
@@ -327,12 +330,12 @@ body {
 .history-section {
   margin-top: 30px;
   padding: 25px;
-  background: #f8f9fa;
+  background: #f8fafc;
   border-radius: 15px;
 }
 
 .history-section h2 {
-  color: #2c3e50;
+  color: #1e3a8a;
   margin-bottom: 20px;
   font-size: 1.4rem;
   display: flex;
@@ -349,20 +352,20 @@ body {
   border-radius: 12px;
   padding: 20px;
   margin-bottom: 15px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-  border-left: 4px solid #3498db;
+  box-shadow: 0 2px 10px rgba(37, 99, 235, 0.08);
+  border-left: 4px solid #2563eb;
   transition: all 0.3s ease;
 }
 
 .history-card h4 {
-  color: #2c3e50;
+  color: #1e3a8a;
   margin-bottom: 10px;
   font-size: 1.1rem;
 }
 
 .history-card p {
   margin-bottom: 5px;
-  color: #7f8c8d;
+  color: #64748b;
   font-size: 0.9rem;
 }
 
@@ -373,12 +376,12 @@ body {
 
 .history-card li {
   margin-bottom: 3px;
-  color: #34495e;
+  color: #475569;
   font-size: 0.9rem;
 }
 
 .total-box {
-  background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+  background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
   color: white;
   padding: 20px;
   border-radius: 12px;
@@ -386,7 +389,7 @@ body {
   font-size: 1.3rem;
   font-weight: 700;
   margin-top: 20px;
-  box-shadow: 0 4px 15px rgba(39, 174, 96, 0.3);
+  box-shadow: 0 4px 15px rgba(13, 148, 136, 0.25);
 }
 
 /* Login Form */
@@ -485,13 +488,13 @@ body {
 
 /* Additional animations and improvements */
 .item-card.has-items {
-  border-color: #27ae60;
-  box-shadow: 0 4px 20px rgba(39, 174, 96, 0.2);
+  border-color: #0d9488;
+  box-shadow: 0 4px 20px rgba(13, 148, 136, 0.2);
 }
 
 .qty-input.has-value {
-  border-color: #27ae60;
-  background: #f0fff4;
+  border-color: #0d9488;
+  background: #f0fdfa;
 }
 
 /* Cart animations */
@@ -605,14 +608,14 @@ body {
 /* Enhanced form validation */
 .input-group.error input,
 .input-group.error select {
-  border-color: #e74c3c;
-  box-shadow: 0 0 0 3px rgba(231, 76, 60, 0.1);
+  border-color: #dc2626;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
 }
 
 .input-group.success input,
 .input-group.success select {
-  border-color: #27ae60;
-  box-shadow: 0 0 0 3px rgba(39, 174, 96, 0.1);
+  border-color: #0d9488;
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.1);
 }
 
 /* Loading states */
