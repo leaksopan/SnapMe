@@ -1,70 +1,143 @@
-# Getting Started with Create React App
+# Kasir SnapMe
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+### 1. Clone Repository
 
-## Available Scripts
+```bash
+git clone <repository-url>
+cd kasir-snapme
+```
 
-In the project directory, you can run:
+### 2. Install Dependencies
 
-### `npm start`
+```bash
+npm install
+```
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+### 3. Setup Database (Supabase)
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+#### Buat akun Supabase:
 
-### `npm test`
+1. Daftar di [supabase.com](https://supabase.com)
+2. Buat project baru
+3. Copy URL dan API Key dari Settings > API
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+#### Buat tabel di Supabase:
 
-### `npm run build`
+Jalankan SQL berikut di SQL Editor Supabase:
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+```sql
+-- Tabel products
+CREATE TABLE products (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  price DECIMAL(10,2) NOT NULL,
+  stock INTEGER DEFAULT 0,
+  created_at TIMESTAMP DEFAULT NOW()
+);
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+-- Insert sample data
+INSERT INTO products (name, price, stock) VALUES
+('Nasi Goreng', 15000, 50),
+('Mie Ayam', 12000, 30),
+('Es Teh', 5000, 100),
+('Kopi', 8000, 80);
+```
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+### 4. Konfigurasi Environment
 
-### `npm run eject`
+Update file `src/supabaseClient.js` dengan kredensial Supabase Anda:
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+```javascript
+const supabaseUrl = "YOUR_SUPABASE_URL";
+const supabaseKey = "YOUR_SUPABASE_ANON_KEY";
+```
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+### 5. Jalankan Aplikasi
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+```bash
+npm start
+```
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+Aplikasi akan berjalan di [http://localhost:3000](http://localhost:3000)
 
-## Learn More
+## 📁 Struktur Project
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+```
+kasir-snapme/
+├── src/
+│   ├── App.js              # Komponen utama aplikasi
+│   ├── App.css             # Styling utama
+│   ├── supabaseClient.js   # Konfigurasi database
+│   └── index.js            # Entry point
+├── public/                 # Static files
+├── package.json           # Dependencies
+└── README.md              # Dokumentasi
+```
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+## 🎯 Cara Penggunaan
 
-### Code Splitting
+### Manajemen Produk
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+1. Tambah produk baru dengan mengisi form
+2. Edit produk dengan klik tombol edit
+3. Hapus produk dengan tombol delete
 
-### Analyzing the Bundle Size
+### Transaksi Kasir
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+1. Pilih produk dari daftar
+2. Atur jumlah di keranjang
+3. Klik "Bayar" untuk menyelesaikan transaksi
+4. Struk PDF akan otomatis ter-generate
 
-### Making a Progressive Web App
+## 🔧 Scripts Available
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+```bash
+npm start      # Jalankan development server
+npm test       # Jalankan test suite
+npm run build  # Build untuk production
+```
 
-### Advanced Configuration
+## 🛠️ Tech Stack
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+- **Frontend**: React 19, Tailwind CSS
+- **Database**: Supabase (PostgreSQL)
+- **PDF Generator**: jsPDF
+- **Build Tool**: Create React App
 
-### Deployment
+## 📝 Troubleshooting
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+### Error koneksi Supabase
 
-### `npm run build` fails to minify
+- Pastikan URL dan API key benar
+- Cek koneksi internet
+- Verifikasi tabel sudah dibuat
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+### Error saat install dependencies
+
+```bash
+npm cache clean --force
+rm -rf node_modules package-lock.json
+npm install
+```
+
+### Port 3000 sudah digunakan
+
+```bash
+npm start -- --port 3001
+```
+
+## 🤝 Contributing
+
+1. Fork repository
+2. Buat branch feature (`git checkout -b feature/AmazingFeature`)
+3. Commit changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push ke branch (`git push origin feature/AmazingFeature`)
+5. Buat Pull Request
+
+## 📄 License
+
+Distributed under the MIT License.
+
+## 📞 Support
+
+Jika ada pertanyaan atau issue, silakan buat issue di repository ini.
