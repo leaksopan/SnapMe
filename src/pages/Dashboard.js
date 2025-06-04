@@ -20,6 +20,9 @@ const Dashboard = ({ user, onLogout }) => {
   const [showCustomPicker, setShowCustomPicker] = useState(false);
   const [isRealTimeConnected, setIsRealTimeConnected] = useState(false);
   const [lastUpdate, setLastUpdate] = useState(new Date());
+  const [realtimeEvents, setRealtimeEvents] = useState([]);
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
 
   // Format rupiah
   const formatRupiah = (num) => {
@@ -100,7 +103,25 @@ const Dashboard = ({ user, onLogout }) => {
     }
   }, [customStartDate, customEndDate]);
 
-  // Load dashboard data - menggunakan useCallback untuk mengatasi ESLint warning
+  // Toast notification function
+  const displayToast = (message) => {
+    setToastMessage(message);
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 3000);
+  };
+
+  // Add realtime event to log
+  const addRealtimeEvent = (event) => {
+    const newEvent = {
+      id: Date.now(),
+      timestamp: new Date(),
+      event: event,
+      type: 'realtime'
+    };
+    setRealtimeEvents(prev => [newEvent, ...prev.slice(0, 9)]); // Keep last 10 events
+  };
+
+  // Load dashboard data - mendefinisikan dulu sebelum updateDashboardIncremental
   const loadDashboardData = useCallback(async () => {
     console.time('⚡ Dashboard Data Load');
     setLoading(true);
@@ -300,63 +321,248 @@ const Dashboard = ({ user, onLogout }) => {
       // Update last update timestamp when data successfully loaded
       setLastUpdate(new Date());
       console.log('✅ Dashboard data updated successfully');
+      addRealtimeEvent(`✅ Data dashboard dimuat ulang`);
 
     } catch (error) {
       console.error('❌ Dashboard: Error loading data:', error);
+      addRealtimeEvent(`❌ Error loading data: ${error.message}`);
       alert('Gagal memuat data dashboard: ' + error.message);
     } finally {
       setLoading(false);
       console.timeEnd('⚡ Dashboard Data Load');
     }
-  }, [selectedPeriod, getDateRange, customStartDate, customEndDate]); // Dependencies untuk useCallback
+  }, [selectedPeriod, getDateRange, customStartDate, customEndDate]);
+
+  // Incremental update functions untuk real-time tanpa refresh
+  const updateDashboardIncremental = useCallback(async (newTransaction, action = 'INSERT') => {
+    console.log('🔄 Updating dashboard incrementally...', { action, transaction: newTransaction });
+    
+    try {
+      const dateRange = getDateRange(selectedPeriod);
+      const transactionDate = new Date(newTransaction.created_at);
+      const isInCurrentPeriod = transactionDate >= new Date(dateRange.start) && transactionDate < new Date(dateRange.end);
+      
+      if (action === 'INSERT') {
+        // Update data secara incremental untuk transaksi baru
+        setDashboardData(prevData => {
+          const newData = { ...prevData };
+          
+          // 1. Update sales dan transactions count jika dalam periode
+          if (isInCurrentPeriod) {
+            newData.todaySales += newTransaction.total_amount || 0;
+            newData.totalTransactions += 1;
+          }
+          
+          // 2. Update total revenue (berlaku untuk semua transaksi)
+          newData.totalRevenue += newTransaction.total_amount || 0;
+          
+          // 3. Add to recent transactions (di depan array)
+          if (newTransaction.users?.full_name) {
+            const newRecentTransaction = {
+              ...newTransaction,
+              users: { full_name: newTransaction.users.full_name }
+            };
+            newData.recentTransactions = [newRecentTransaction, ...prevData.recentTransactions.slice(0, 9)];
+          }
+          
+          return newData;
+        });
+        
+        // 4. Update top products secara incremental (fetch dari transaction items)
+        try {
+          const { data: transactionItems } = await supabase
+            .from('transaction_items')
+            .select(`
+              items(id, name, price),
+              quantity
+            `)
+            .eq('transaction_id', newTransaction.id);
+          
+          if (transactionItems && transactionItems.length > 0) {
+            setDashboardData(prevData => {
+              const updatedTopProducts = [...prevData.topProducts];
+              
+              transactionItems.forEach(item => {
+                if (item.items) {
+                  const existingIndex = updatedTopProducts.findIndex(p => p.name === item.items.name);
+                  if (existingIndex >= 0) {
+                    updatedTopProducts[existingIndex].quantity += item.quantity;
+                    updatedTopProducts[existingIndex].revenue += (item.items.price * item.quantity);
+                  } else if (updatedTopProducts.length < 5) {
+                    updatedTopProducts.push({
+                      name: item.items.name,
+                      quantity: item.quantity,
+                      revenue: item.items.price * item.quantity
+                    });
+                  }
+                }
+              });
+              
+              // Sort by quantity and take top 5
+              updatedTopProducts.sort((a, b) => b.quantity - a.quantity);
+              
+              return {
+                ...prevData,
+                topProducts: updatedTopProducts.slice(0, 5)
+              };
+            });
+          }
+        } catch (error) {
+          console.error('❌ Error updating top products:', error);
+        }
+        
+      } else if (action === 'DELETE') {
+        // Update data secara incremental untuk transaksi yang dihapus
+        setDashboardData(prevData => {
+          const newData = { ...prevData };
+          
+          // 1. Update sales dan transactions count jika dalam periode
+          if (isInCurrentPeriod) {
+            newData.todaySales -= newTransaction.total_amount || 0;
+            newData.totalTransactions -= 1;
+          }
+          
+          // 2. Update total revenue
+          newData.totalRevenue -= newTransaction.total_amount || 0;
+          
+          // 3. Remove from recent transactions
+          newData.recentTransactions = prevData.recentTransactions.filter(
+            t => t.id !== newTransaction.id
+          );
+          
+          return newData;
+        });
+      }
+      
+      setLastUpdate(new Date());
+      console.log('✅ Dashboard updated incrementally');
+      
+    } catch (error) {
+      console.error('❌ Error in incremental update:', error);
+      // Fallback ke full reload jika ada error (tidak perlu dependency karena akan dipanggil)
+      console.log('🔄 Falling back to full data reload...');
+      setTimeout(() => {
+        // Reload dashboard sebagai fallback
+        window.location.reload();
+      }, 1000);
+    }
+  }, [selectedPeriod, getDateRange]);
 
   // Load data when component mounts or period changes
   useEffect(() => {
     loadDashboardData();
   }, [loadDashboardData]); // Sekarang menggunakan loadDashboardData dari useCallback
 
-  // Setup Supabase Realtime untuk auto-update
+  // Initialize dashboard and add initial log
   useEffect(() => {
-    console.log('🔌 Setting up Supabase Realtime...');
+    addRealtimeEvent('🚀 Dashboard dimuat dan siap menerima realtime updates');
+  }, []);
+
+  // Setup Supabase Realtime untuk auto-update (INCREMENTAL, NO REFRESH)
+  useEffect(() => {
+    console.log('🔌 Setting up Supabase Realtime (Incremental Mode)...');
+    
+    // Create a unique channel for dashboard
+    const channelName = `dashboard-realtime-${Date.now()}`;
+    console.log(`📡 Creating channel: ${channelName}`);
     
     // Subscribe to transactions table changes
     const transactionSubscription = supabase
-      .channel('dashboard-transactions')
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
-          event: '*', // Listen to INSERT, UPDATE, DELETE
+          event: 'INSERT', // Listen to new transactions
+          schema: 'public',
+          table: 'transactions'
+        },
+        async (payload) => {
+          console.log('🆕 New transaction detected (INCREMENTAL):', payload);
+          addRealtimeEvent(`🆕 Transaksi baru: ${payload.new?.transaction_number || 'Unknown'}`);
+          displayToast(`🆕 Transaksi baru masuk! ${payload.new?.customer_name || ''}`);
+          
+          // Fetch full transaction data including user info
+          try {
+            const { data: fullTransaction } = await supabase
+              .from('transactions')
+              .select(`
+                id,
+                transaction_number,
+                customer_name,
+                total_amount,
+                payment_method,
+                created_at,
+                users(full_name)
+              `)
+              .eq('id', payload.new.id)
+              .single();
+            
+            if (fullTransaction) {
+              // Update dashboard secara incremental (NO REFRESH)
+              updateDashboardIncremental(fullTransaction, 'INSERT');
+            }
+          } catch (error) {
+            console.error('❌ Error fetching full transaction data:', error);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE', // Listen to transaction updates
           schema: 'public',
           table: 'transactions'
         },
         (payload) => {
-          console.log('🔄 Transaction change detected:', payload);
-          // Auto refresh dashboard data when transaction changes
+          console.log('📝 Transaction updated (INCREMENTAL):', payload);
+          addRealtimeEvent(`📝 Transaksi diperbarui: ${payload.new?.transaction_number || 'Unknown'}`);
           setLastUpdate(new Date());
-          loadDashboardData();
+          
+          // For updates, we'll do a selective update instead of full reload
+          setDashboardData(prevData => ({
+            ...prevData,
+            recentTransactions: prevData.recentTransactions.map(t => 
+              t.id === payload.new.id ? { ...t, ...payload.new } : t
+            )
+          }));
         }
       )
       .on(
         'postgres_changes',
         {
-          event: '*', // Listen to INSERT, UPDATE, DELETE
+          event: 'DELETE', // Listen to transaction deletions
           schema: 'public',
-          table: 'transaction_items'
+          table: 'transactions'
         },
         (payload) => {
-          console.log('🔄 Transaction items change detected:', payload);
-          // Auto refresh dashboard data when transaction items change
-          setLastUpdate(new Date());
-          loadDashboardData();
+          console.log('🗑️ Transaction deleted (INCREMENTAL):', payload);
+          addRealtimeEvent(`🗑️ Transaksi dihapus: ${payload.old?.transaction_number || 'Unknown'}`);
+          displayToast(`🗑️ Transaksi dihapus dari sistem`);
+          
+          // Update dashboard secara incremental (NO REFRESH)
+          updateDashboardIncremental(payload.old, 'DELETE');
         }
       )
-      .subscribe((status) => {
-        console.log('📡 Realtime subscription status:', status);
+      .subscribe((status, err) => {
+        console.log(`📡 Realtime subscription status: ${status}`);
+        if (err) {
+          console.error('❌ Realtime subscription error:', err);
+        }
+        
         setIsRealTimeConnected(status === 'SUBSCRIBED');
+        
         if (status === 'SUBSCRIBED') {
-          console.log('✅ Dashboard Realtime connected successfully!');
+          console.log('✅ Dashboard Realtime connected successfully (INCREMENTAL MODE)!');
+          console.log('🎯 Listening for changes on transactions table');
+          addRealtimeEvent('🎯 Realtime mode: INCREMENTAL (seperti chat, tanpa refresh)');
         } else if (status === 'CHANNEL_ERROR') {
           console.error('❌ Dashboard Realtime connection error');
+          setIsRealTimeConnected(false);
+        } else if (status === 'TIMED_OUT') {
+          console.error('⏰ Dashboard Realtime connection timed out');
+          setIsRealTimeConnected(false);
+        } else if (status === 'CLOSED') {
+          console.log('🔌 Dashboard Realtime connection closed');
           setIsRealTimeConnected(false);
         }
       });
@@ -364,10 +570,12 @@ const Dashboard = ({ user, onLogout }) => {
     // Cleanup subscription on unmount
     return () => {
       console.log('🔌 Cleaning up Supabase Realtime subscription...');
-      supabase.removeChannel(transactionSubscription);
+      if (transactionSubscription) {
+        supabase.removeChannel(transactionSubscription);
+      }
       setIsRealTimeConnected(false);
     };
-  }, [loadDashboardData]);
+  }, [updateDashboardIncremental]);
 
   // Handle period change
   const handlePeriodChange = (period) => {
@@ -568,13 +776,35 @@ const Dashboard = ({ user, onLogout }) => {
 
   return (
     <div className="App">
-      {/* CSS Animation for Pulse Effect */}
+      {/* Toast Notification */}
+      {showToast && (
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          right: '20px',
+          background: '#27ae60',
+          color: 'white',
+          padding: '12px 20px',
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+          zIndex: 9999,
+          animation: 'slideInRight 0.3s ease-out'
+        }}>
+          {toastMessage}
+        </div>
+      )}
+
+      {/* CSS Animation for Pulse Effect and Toast */}
       <style>
         {`
           @keyframes pulse {
             0% { opacity: 1; }
             50% { opacity: 0.5; }
             100% { opacity: 1; }
+          }
+          @keyframes slideInRight {
+            from { transform: translateX(300px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
           }
         `}
       </style>
@@ -1065,6 +1295,76 @@ const Dashboard = ({ user, onLogout }) => {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Realtime Debug Panel */}
+        {process.env.NODE_ENV === 'development' && (
+          <div style={{
+            background: '#2c3e50',
+            color: 'white',
+            padding: '20px',
+            borderRadius: '8px',
+            marginBottom: '20px'
+          }}>
+            <h3 style={{ margin: '0 0 15px 0', color: '#ecf0f1' }}>🐛 Debug Realtime</h3>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'auto 1fr',
+              gap: '10px',
+              alignItems: 'center',
+              marginBottom: '15px'
+            }}>
+              <span>Status:</span>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <div style={{
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  background: isRealTimeConnected ? '#27ae60' : '#e74c3c',
+                  animation: isRealTimeConnected ? 'pulse 2s infinite' : 'none'
+                }}></div>
+                <span style={{ color: isRealTimeConnected ? '#27ae60' : '#e74c3c', fontWeight: 'bold' }}>
+                  {isRealTimeConnected ? 'CONNECTED' : 'DISCONNECTED'}
+                </span>
+              </div>
+              <span>Last Update:</span>
+              <span style={{ fontFamily: 'monospace' }}>
+                {lastUpdate.toLocaleString('id-ID')}
+              </span>
+            </div>
+            
+            <div style={{ marginBottom: '10px', fontWeight: 'bold' }}>
+              Recent Events ({realtimeEvents.length}/10):
+            </div>
+            <div style={{
+              maxHeight: '150px',
+              overflowY: 'auto',
+              background: '#34495e',
+              padding: '10px',
+              borderRadius: '4px',
+              fontFamily: 'monospace',
+              fontSize: '12px'
+            }}>
+              {realtimeEvents.length === 0 ? (
+                <div style={{ color: '#7f8c8d', fontStyle: 'italic' }}>
+                  Menunggu event realtime...
+                </div>
+              ) : (
+                realtimeEvents.map((event) => (
+                  <div key={event.id} style={{ marginBottom: '5px' }}>
+                    <span style={{ color: '#95a5a6' }}>
+                      [{event.timestamp.toLocaleTimeString('id-ID')}]
+                    </span>{' '}
+                    <span style={{ color: '#f39c12' }}>{event.event}</span>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         )}
