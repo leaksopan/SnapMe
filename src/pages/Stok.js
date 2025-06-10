@@ -187,14 +187,14 @@ const Stok = ({ user, onLogout }) => {
     }
   };
 
-  // Delete item
+  // Soft delete item (nonaktifkan item)
   const handleDeleteItem = async (item) => {
     if (user.role !== 'admin') {
       showToast('Hanya admin yang dapat menghapus item', 'error');
       return;
     }
 
-    if (!window.confirm(`Apakah Anda yakin ingin menghapus item "${item.name}"?`)) {
+    if (!window.confirm(`Apakah Anda yakin ingin menonaktifkan item "${item.name}"?\n\nItem akan dinonaktifkan dan tidak muncul dalam transaksi baru.`)) {
       return;
     }
 
@@ -203,26 +203,75 @@ const Stok = ({ user, onLogout }) => {
 
     setLoading(true);
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('items')
-        .delete()
-        .eq('id', item.id);
+        .update({ is_active: false })
+        .eq('id', item.id)
+        .select()
+        .single();
 
       if (error) throw error;
 
       // Update state langsung tanpa reload menggunakan flushSync
       flushSync(() => {
-        setItems(prev => prev.filter(i => i.id !== item.id));
+        setItems(prev => prev.map(i => 
+          i.id === item.id ? data : i
+        ));
       });
 
       setSelectedCard(null);
-      showToast('Item berhasil dihapus! 🗑️');
+      showToast('Item berhasil dinonaktifkan! ⚠️');
       
       // Pulihkan scroll position setelah delete
       restoreScrollPosition();
     } catch (error) {
-      console.error('Error deleting item:', error);
-      showToast('Gagal menghapus item: ' + error.message, 'error');
+      console.error('Error deactivating item:', error);
+      showToast('Gagal menonaktifkan item: ' + error.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Activate item (aktifkan kembali item)
+  const handleActivateItem = async (item) => {
+    if (user.role !== 'admin') {
+      showToast('Hanya admin yang dapat mengaktifkan item', 'error');
+      return;
+    }
+
+    if (!window.confirm(`Apakah Anda yakin ingin mengaktifkan kembali item "${item.name}"?`)) {
+      return;
+    }
+
+    // Simpan scroll position sebelum activate
+    saveScrollPosition();
+
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('items')
+        .update({ is_active: true })
+        .eq('id', item.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Update state langsung tanpa reload menggunakan flushSync
+      flushSync(() => {
+        setItems(prev => prev.map(i => 
+          i.id === item.id ? data : i
+        ));
+      });
+
+      setSelectedCard(null);
+      showToast('Item berhasil diaktifkan kembali! ✅');
+      
+      // Pulihkan scroll position setelah activate
+      restoreScrollPosition();
+    } catch (error) {
+      console.error('Error activating item:', error);
+      showToast('Gagal mengaktifkan item: ' + error.message, 'error');
     } finally {
       setLoading(false);
     }
@@ -762,7 +811,7 @@ const Stok = ({ user, onLogout }) => {
                           }}
                         >
                           {selectedCard === item.id && user.role === 'admin' ? (
-                            /* Mode Edit/Hapus */
+                            /* Mode Edit/Hapus/Aktifkan */
                             <div style={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '8px' }}>
                               <h4 style={{ 
                                 fontSize: '0.9rem', 
@@ -793,24 +842,45 @@ const Stok = ({ user, onLogout }) => {
                               >
                                 ✏️ Edit
                               </button>
-                              <button 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeleteItem(item);
-                                }}
-                                style={{
-                                  width: '100%',
-                                  backgroundColor: '#e74c3c',
-                                  color: 'white',
-                                  border: 'none',
-                                  padding: '8px 8px',
-                                  borderRadius: '4px',
-                                  fontSize: '0.8rem',
-                                  cursor: 'pointer'
-                                }}
-                              >
-                                🗑️ Hapus
-                              </button>
+                              {item.is_active ? (
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteItem(item);
+                                  }}
+                                  style={{
+                                    width: '100%',
+                                    backgroundColor: '#e74c3c',
+                                    color: 'white',
+                                    border: 'none',
+                                    padding: '8px 8px',
+                                    borderRadius: '4px',
+                                    fontSize: '0.8rem',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  ⚠️ Nonaktifkan
+                                </button>
+                              ) : (
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleActivateItem(item);
+                                  }}
+                                  style={{
+                                    width: '100%',
+                                    backgroundColor: '#27ae60',
+                                    color: 'white',
+                                    border: 'none',
+                                    padding: '8px 8px',
+                                    borderRadius: '4px',
+                                    fontSize: '0.8rem',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  ✅ Aktifkan
+                                </button>
+                              )}
                             </div>
                           ) : (
                             /* Mode Info Dasar */

@@ -1,4 +1,4 @@
-import React, { useState, lazy, Suspense } from 'react';
+import React, { useState, lazy, Suspense, useEffect } from 'react';
 import './App.css';
 
 // Import page components - lazy load untuk optimasi
@@ -14,6 +14,19 @@ function App() {
   const [user, setUser] = useState(null);
   const [currentPage, setCurrentPage] = useState('kasir');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  // Update document title berdasarkan halaman aktif
+  useEffect(() => {
+    const pageTitle = {
+      'kasir': 'Kasir - SnapMe',
+      'dashboard': 'Dashboard - SnapMe', 
+      'history': 'Riwayat Transaksi - SnapMe',
+      'stok': 'Manajemen Stok - SnapMe',
+      'karyawan': 'Manajemen Karyawan - SnapMe'
+    };
+    
+    document.title = user ? pageTitle[currentPage] || 'Kasir SnapMe' : 'Login - SnapMe';
+  }, [currentPage, user]);
 
   // Handle login
   const handleLogin = async (userData) => {

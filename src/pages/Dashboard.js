@@ -13,6 +13,7 @@ const Dashboard = ({ user, onLogout }) => {
     employeeStats: []
   });
   const [loading, setLoading] = useState(true);
+  const [reportLoading, setReportLoading] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState('today'); // today, week, month, custom
   const [selectedChart, setSelectedChart] = useState('sales'); // sales, transactions
   const [customStartDate, setCustomStartDate] = useState('');
@@ -47,62 +48,6 @@ const Dashboard = ({ user, onLogout }) => {
     });
   };
 
-  // Get date range based on period
-  const getDateRange = useCallback((period) => {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    
-    switch(period) {
-      case 'today':
-        return {
-          start: today.toISOString(),
-          end: new Date(today.getTime() + 24 * 60 * 60 * 1000).toISOString(),
-          label: `${formatDate(today)}`
-        };
-      case 'week':
-        const weekStart = new Date(today);
-        weekStart.setDate(today.getDate() - 7);
-        return {
-          start: weekStart.toISOString(),
-          end: now.toISOString(),
-          label: `${formatDate(weekStart)} - ${formatDate(today)}`
-        };
-      case 'month':
-        const monthStart = new Date(today);
-        monthStart.setDate(today.getDate() - 30);
-        return {
-          start: monthStart.toISOString(),
-          end: now.toISOString(),
-          label: `${formatDate(monthStart)} - ${formatDate(today)}`
-        };
-      case 'custom':
-        if (customStartDate && customEndDate) {
-          const startDate = new Date(customStartDate);
-          const endDate = new Date(customEndDate);
-          // Set endDate to end of day
-          endDate.setHours(23, 59, 59, 999);
-          return {
-            start: startDate.toISOString(),
-            end: endDate.toISOString(),
-            label: `${formatDate(startDate)} - ${formatDate(endDate)}`
-          };
-        } else {
-          // Fallback to today if custom dates not set
-          return {
-            start: today.toISOString(),
-            end: new Date(today.getTime() + 24 * 60 * 60 * 1000).toISOString(),
-            label: `${formatDate(today)}`
-          };
-        }
-      default:
-        return {
-          start: today.toISOString(),
-          end: new Date(today.getTime() + 24 * 60 * 60 * 1000).toISOString(),
-          label: `${formatDate(today)}`
-        };
-    }
-  }, [customStartDate, customEndDate]);
-
   // Toast notification function
   const displayToast = (message) => {
     setToastMessage(message);
@@ -120,6 +65,67 @@ const Dashboard = ({ user, onLogout }) => {
     };
     setRealtimeEvents(prev => [newEvent, ...prev.slice(0, 9)]); // Keep last 10 events
   };
+
+  // Get date range based on period
+  const getDateRange = useCallback((period) => {
+    // Force UTC untuk konsistensi dengan database
+    const now = new Date();
+    const today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+    
+    switch(period) {
+      case 'today':
+        const todayStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+        const todayEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 1));
+        return {
+          start: todayStart.toISOString(),
+          end: todayEnd.toISOString(),
+          label: `${formatDate(todayStart)}`
+        };
+      case 'week':
+        const weekStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - 7));
+        const weekEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 1));
+        return {
+          start: weekStart.toISOString(),
+          end: weekEnd.toISOString(),
+          label: `${formatDate(weekStart)} - ${formatDate(today)}`
+        };
+      case 'month':
+        const monthStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - 30));
+        const monthEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 1));
+        return {
+          start: monthStart.toISOString(),
+          end: monthEnd.toISOString(),
+          label: `${formatDate(monthStart)} - ${formatDate(today)}`
+        };
+      case 'custom':
+        if (customStartDate && customEndDate) {
+          const startDate = new Date(customStartDate + 'T00:00:00.000Z'); // Force UTC
+          const endDate = new Date(customEndDate + 'T23:59:59.999Z'); // Force UTC end of day
+          return {
+            start: startDate.toISOString(),
+            end: endDate.toISOString(),
+            label: `${formatDate(startDate)} - ${formatDate(endDate)}`
+          };
+        } else {
+          // Fallback to today if custom dates not set
+          const fallbackStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+          const fallbackEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 1));
+          return {
+            start: fallbackStart.toISOString(),
+            end: fallbackEnd.toISOString(),
+            label: `${formatDate(fallbackStart)}`
+          };
+        }
+      default:
+        const defaultStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+        const defaultEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 1));
+        return {
+          start: defaultStart.toISOString(),
+          end: defaultEnd.toISOString(),
+          label: `${formatDate(defaultStart)}`
+        };
+    }
+  }, [customStartDate, customEndDate]);
 
   // Load dashboard data - mendefinisikan dulu sebelum updateDashboardIncremental
   const loadDashboardData = useCallback(async () => {
@@ -764,6 +770,321 @@ const Dashboard = ({ user, onLogout }) => {
     }
   };
 
+  // Function untuk generate laporan berdasarkan date range
+  const generateReport = useCallback(async (startDate, endDate) => {
+    console.log('📊 Generating report for:', { startDate, endDate });
+    console.log('🕐 Date range (UTC):', { 
+      start: new Date(startDate).toISOString(), 
+      end: new Date(endDate).toISOString(),
+      startLocal: new Date(startDate).toLocaleString('id-ID'),
+      endLocal: new Date(endDate).toLocaleString('id-ID')
+    });
+    
+    try {
+      // 1. Get transaction items dengan detail lengkap
+      const { data: transactionItems, error: itemsError } = await supabase
+        .from('transaction_items')
+        .select(`
+          id,
+          quantity,
+          unit_price,
+          subtotal,
+          created_at,
+          items(id, name, category, price),
+          transactions(id, transaction_number, customer_name, created_at, users(full_name))
+        `)
+        .gte('created_at', startDate)
+        .lt('created_at', endDate)
+        .order('created_at', { ascending: true });
+
+      if (itemsError) throw itemsError;
+      
+      console.log(`🔍 Found ${transactionItems?.length || 0} transaction items in range:`, transactionItems);
+
+      // 2. Get data periode sebelumnya untuk perbandingan
+      const periodDiff = new Date(endDate) - new Date(startDate);
+      const previousStart = new Date(new Date(startDate).getTime() - periodDiff);
+      const previousEnd = new Date(startDate);
+
+      const { data: previousItems, error: previousError } = await supabase
+        .from('transaction_items')
+        .select(`
+          quantity,
+          subtotal,
+          items(category)
+        `)
+        .gte('created_at', previousStart.toISOString())
+        .lt('created_at', previousEnd.toISOString());
+
+      if (previousError) throw previousError;
+
+      // 3. Kategorisasi data
+      const categoryA = ['studio', 'addon']; // Paket Studio & Add-on Cetak Foto
+      const categoryB = ['minuman', 'snack']; // Add-on Minuman & Snack
+
+      // 4. Process data per hari
+      const dailyData = {};
+      const itemDetails = {
+        categoryA: {},
+        categoryB: {}
+      };
+
+      // Initialize daily data structure
+      const startDateObj = new Date(startDate);
+      const endDateObj = new Date(endDate);
+      for (let d = new Date(startDateObj); d < endDateObj; d.setDate(d.getDate() + 1)) {
+        const dateKey = d.toISOString().split('T')[0];
+        dailyData[dateKey] = {
+          date: dateKey,
+          categoryA: { revenue: 0, quantity: 0, transactions: new Set() },
+          categoryB: { revenue: 0, quantity: 0, transactions: new Set() }
+        };
+      }
+
+      // Process transaction items
+      transactionItems?.forEach(item => {
+        const itemCategory = item.items?.category;
+        const itemDate = new Date(item.created_at).toISOString().split('T')[0];
+        const revenue = item.subtotal || 0;
+        const quantity = item.quantity || 0;
+        const itemName = item.items?.name || 'Unknown';
+        const transactionId = item.transactions?.id;
+
+        // Add to daily data
+        if (dailyData[itemDate]) {
+          if (categoryA.includes(itemCategory)) {
+            dailyData[itemDate].categoryA.revenue += revenue;
+            dailyData[itemDate].categoryA.quantity += quantity;
+            if (transactionId) dailyData[itemDate].categoryA.transactions.add(transactionId);
+
+            // Add to item details
+            if (!itemDetails.categoryA[itemName]) {
+              itemDetails.categoryA[itemName] = { quantity: 0, revenue: 0, transactions: new Set() };
+            }
+            itemDetails.categoryA[itemName].quantity += quantity;
+            itemDetails.categoryA[itemName].revenue += revenue;
+            if (transactionId) itemDetails.categoryA[itemName].transactions.add(transactionId);
+
+          } else if (categoryB.includes(itemCategory)) {
+            dailyData[itemDate].categoryB.revenue += revenue;
+            dailyData[itemDate].categoryB.quantity += quantity;
+            if (transactionId) dailyData[itemDate].categoryB.transactions.add(transactionId);
+
+            // Add to item details
+            if (!itemDetails.categoryB[itemName]) {
+              itemDetails.categoryB[itemName] = { quantity: 0, revenue: 0, transactions: new Set() };
+            }
+            itemDetails.categoryB[itemName].quantity += quantity;
+            itemDetails.categoryB[itemName].revenue += revenue;
+            if (transactionId) itemDetails.categoryB[itemName].transactions.add(transactionId);
+          }
+        }
+      });
+
+      // Convert Sets to counts
+      Object.values(dailyData).forEach(day => {
+        day.categoryA.transactions = day.categoryA.transactions.size;
+        day.categoryB.transactions = day.categoryB.transactions.size;
+      });
+
+      Object.values(itemDetails.categoryA).forEach(item => {
+        item.transactions = item.transactions.size;
+      });
+      Object.values(itemDetails.categoryB).forEach(item => {
+        item.transactions = item.transactions.size;
+      });
+
+      // 5. Calculate totals
+      const totalCategoryA = {
+        revenue: Object.values(itemDetails.categoryA).reduce((sum, item) => sum + item.revenue, 0),
+        quantity: Object.values(itemDetails.categoryA).reduce((sum, item) => sum + item.quantity, 0),
+        transactions: Object.values(dailyData).reduce((sum, day) => sum + day.categoryA.transactions, 0)
+      };
+
+      const totalCategoryB = {
+        revenue: Object.values(itemDetails.categoryB).reduce((sum, item) => sum + item.revenue, 0),
+        quantity: Object.values(itemDetails.categoryB).reduce((sum, item) => sum + item.quantity, 0),
+        transactions: Object.values(dailyData).reduce((sum, day) => sum + day.categoryB.transactions, 0)
+      };
+
+      // 6. Calculate previous period comparison
+      const previousCategoryA = {
+        revenue: previousItems?.filter(item => categoryA.includes(item.items?.category))
+          .reduce((sum, item) => sum + (item.subtotal || 0), 0) || 0,
+        quantity: previousItems?.filter(item => categoryA.includes(item.items?.category))
+          .reduce((sum, item) => sum + (item.quantity || 0), 0) || 0
+      };
+
+      const previousCategoryB = {
+        revenue: previousItems?.filter(item => categoryB.includes(item.items?.category))
+          .reduce((sum, item) => sum + (item.subtotal || 0), 0) || 0,
+        quantity: previousItems?.filter(item => categoryB.includes(item.items?.category))
+          .reduce((sum, item) => sum + (item.quantity || 0), 0) || 0
+      };
+
+      // 7. Calculate growth percentages
+      const growthA = {
+        revenue: previousCategoryA.revenue > 0 ? 
+          ((totalCategoryA.revenue - previousCategoryA.revenue) / previousCategoryA.revenue * 100) : 0,
+        quantity: previousCategoryA.quantity > 0 ? 
+          ((totalCategoryA.quantity - previousCategoryA.quantity) / previousCategoryA.quantity * 100) : 0
+      };
+
+      const growthB = {
+        revenue: previousCategoryB.revenue > 0 ? 
+          ((totalCategoryB.revenue - previousCategoryB.revenue) / previousCategoryB.revenue * 100) : 0,
+        quantity: previousCategoryB.quantity > 0 ? 
+          ((totalCategoryB.quantity - previousCategoryB.quantity) / previousCategoryB.quantity * 100) : 0
+      };
+
+      const reportResult = {
+        dateRange: {
+          start: startDate,
+          end: endDate,
+          label: `${formatDate(new Date(startDate))} - ${formatDate(new Date(endDate))}`
+        },
+        categoryA: {
+          name: 'Studio & Cetak Foto',
+          total: totalCategoryA,
+          previous: previousCategoryA,
+          growth: growthA,
+          items: Object.entries(itemDetails.categoryA).map(([name, data]) => ({
+            name,
+            quantity: data.quantity,
+            revenue: data.revenue,
+            transactions: data.transactions,
+            avgPerTransaction: data.transactions > 0 ? (data.revenue / data.transactions) : 0
+          })).sort((a, b) => b.revenue - a.revenue)
+        },
+        categoryB: {
+          name: 'Minuman & Snack',
+          total: totalCategoryB,
+          previous: previousCategoryB,
+          growth: growthB,
+          items: Object.entries(itemDetails.categoryB).map(([name, data]) => ({
+            name,
+            quantity: data.quantity,
+            revenue: data.revenue,
+            transactions: data.transactions,
+            avgPerTransaction: data.transactions > 0 ? (data.revenue / data.transactions) : 0
+          })).sort((a, b) => b.revenue - a.revenue)
+        },
+        dailyBreakdown: Object.values(dailyData).sort((a, b) => new Date(a.date) - new Date(b.date)),
+        summary: {
+          totalRevenue: totalCategoryA.revenue + totalCategoryB.revenue,
+          totalQuantity: totalCategoryA.quantity + totalCategoryB.quantity,
+          totalTransactions: Math.max(totalCategoryA.transactions, totalCategoryB.transactions),
+          categoryAPercentage: totalCategoryA.revenue + totalCategoryB.revenue > 0 ? 
+            (totalCategoryA.revenue / (totalCategoryA.revenue + totalCategoryB.revenue) * 100) : 0
+        }
+      };
+      
+      console.log('✅ Report generated successfully:', {
+        totalItems: transactionItems?.length || 0,
+        categoryA: reportResult.categoryA.total,
+        categoryB: reportResult.categoryB.total,
+        summary: reportResult.summary,
+        dailyCount: reportResult.dailyBreakdown.length
+      });
+      
+      return reportResult;
+
+    } catch (error) {
+      console.error('❌ Error generating report:', error);
+      throw error;
+    }
+  }, []);
+
+  // Function untuk export ke Excel (menggunakan CSV sebagai fallback)
+  const exportToExcel = useCallback(async () => {
+    setReportLoading(true);
+    displayToast('📊 Generating laporan...');
+
+    try {
+      const dateRange = getDateRange(selectedPeriod);
+      const reportData = await generateReport(dateRange.start, dateRange.end);
+
+      // Create CSV content
+      let csvContent = '';
+      
+      // Header Info
+      csvContent += `LAPORAN PENJUALAN\n`;
+      csvContent += `Periode: ${reportData.dateRange.label}\n`;
+      csvContent += `Generated: ${new Date().toLocaleString('id-ID')}\n`;
+      csvContent += `Generated by: ${user.full_name}\n\n`;
+
+      // Summary
+      csvContent += `RINGKASAN TOTAL\n`;
+      csvContent += `Total Pendapatan,${formatRupiah(reportData.summary.totalRevenue)}\n`;
+      csvContent += `Revenue Kategori A (Studio & Cetak),${formatRupiah(reportData.categoryA.total.revenue)}\n`;
+      csvContent += `Revenue Kategori B (Minuman & Snack),${formatRupiah(reportData.categoryB.total.revenue)}\n`;
+      csvContent += `Total Quantity,${reportData.summary.totalQuantity.toLocaleString('id-ID')} items\n`;
+      csvContent += `Total Transaksi,${reportData.summary.totalTransactions.toLocaleString('id-ID')} transaksi\n`;
+      csvContent += `Persentase Kategori A,${reportData.summary.categoryAPercentage.toFixed(2)}%\n`;
+      csvContent += `Persentase Kategori B,${(100 - reportData.summary.categoryAPercentage).toFixed(2)}%\n\n`;
+
+      // Category A Summary
+      csvContent += `KATEGORI A - ${reportData.categoryA.name}\n`;
+      csvContent += `Pendapatan,${formatRupiah(reportData.categoryA.total.revenue)}\n`;
+      csvContent += `Quantity,${reportData.categoryA.total.quantity.toLocaleString('id-ID')} items\n`;
+      csvContent += `Transaksi,${reportData.categoryA.total.transactions.toLocaleString('id-ID')} transaksi\n`;
+      csvContent += `Growth Revenue vs Periode Sebelumnya,${reportData.categoryA.growth.revenue.toFixed(2)}%\n`;
+      csvContent += `Growth Quantity vs Periode Sebelumnya,${reportData.categoryA.growth.quantity.toFixed(2)}%\n\n`;
+
+      // Category A Details
+      csvContent += `DETAIL PRODUK KATEGORI A\n`;
+      csvContent += `Nama Produk,Quantity,Revenue,Transaksi,Avg per Transaksi\n`;
+      reportData.categoryA.items.forEach(item => {
+        csvContent += `${item.name},${item.quantity.toLocaleString('id-ID')},${formatRupiah(item.revenue)},${item.transactions},${formatRupiah(item.avgPerTransaction.toFixed(0))}\n`;
+      });
+      csvContent += `\n`;
+
+      // Category B Summary
+      csvContent += `KATEGORI B - ${reportData.categoryB.name}\n`;
+      csvContent += `Pendapatan,${formatRupiah(reportData.categoryB.total.revenue)}\n`;
+      csvContent += `Quantity,${reportData.categoryB.total.quantity.toLocaleString('id-ID')} items\n`;
+      csvContent += `Transaksi,${reportData.categoryB.total.transactions.toLocaleString('id-ID')} transaksi\n`;
+      csvContent += `Growth Revenue vs Periode Sebelumnya,${reportData.categoryB.growth.revenue.toFixed(2)}%\n`;
+      csvContent += `Growth Quantity vs Periode Sebelumnya,${reportData.categoryB.growth.quantity.toFixed(2)}%\n\n`;
+
+      // Category B Details
+      csvContent += `DETAIL PRODUK KATEGORI B\n`;
+      csvContent += `Nama Produk,Quantity,Revenue,Transaksi,Avg per Transaksi\n`;
+      reportData.categoryB.items.forEach(item => {
+        csvContent += `${item.name},${item.quantity.toLocaleString('id-ID')},${formatRupiah(item.revenue)},${item.transactions},${formatRupiah(item.avgPerTransaction.toFixed(0))}\n`;
+      });
+      csvContent += `\n`;
+
+      // Daily Breakdown
+      csvContent += `BREAKDOWN HARIAN\n`;
+      csvContent += `Tanggal,Kategori A Revenue,Kategori A Qty,Kategori A Transaksi,Kategori B Revenue,Kategori B Qty,Kategori B Transaksi,Total Revenue\n`;
+      reportData.dailyBreakdown.forEach(day => {
+        const totalDaily = day.categoryA.revenue + day.categoryB.revenue;
+        csvContent += `${formatDate(new Date(day.date))},${formatRupiah(day.categoryA.revenue)},${day.categoryA.quantity},${day.categoryA.transactions},${formatRupiah(day.categoryB.revenue)},${day.categoryB.quantity},${day.categoryB.transactions},${formatRupiah(totalDaily)}\n`;
+      });
+
+      // Download CSV file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `Laporan_Penjualan_${dateRange.start.split('T')[0]}_${dateRange.end.split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      displayToast('✅ Laporan Excel berhasil didownload!');
+      console.log('📊 Report exported successfully:', reportData);
+
+    } catch (error) {
+      console.error('❌ Error exporting report:', error);
+      displayToast('❌ Gagal generate laporan: ' + error.message);
+    } finally {
+      setReportLoading(false);
+    }
+  }, [selectedPeriod, generateReport, getDateRange, user.full_name]);
+
   if (loading) {
     return (
       <div className="App">
@@ -805,6 +1126,10 @@ const Dashboard = ({ user, onLogout }) => {
           @keyframes slideInRight {
             from { transform: translateX(300px); opacity: 0; }
             to { transform: translateX(0); opacity: 1; }
+          }
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
           }
         `}
       </style>
@@ -869,6 +1194,38 @@ const Dashboard = ({ user, onLogout }) => {
               }}
             >
               🔄 Refresh
+            </button>
+            <button
+              onClick={exportToExcel}
+              disabled={reportLoading}
+              style={{
+                padding: '8px 16px',
+                border: 'none',
+                borderRadius: '4px',
+                background: reportLoading ? '#95a5a6' : '#e67e22',
+                color: 'white',
+                cursor: reportLoading ? 'not-allowed' : 'pointer',
+                marginLeft: '10px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              {reportLoading ? (
+                <>
+                  <div style={{
+                    width: '14px',
+                    height: '14px',
+                    border: '2px solid #fff',
+                    borderTop: '2px solid transparent',
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite'
+                  }}></div>
+                  Generating...
+                </>
+              ) : (
+                <>📊 Generate Laporan</>
+              )}
             </button>
           </div>
 
