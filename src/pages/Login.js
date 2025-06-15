@@ -153,33 +153,7 @@ const Login = ({ onLogin }) => {
                 )}
               </form>
               
-              <div style={{
-                marginTop: '25px',
-                padding: '20px',
-                background: '#f8fafc',
-                borderRadius: '10px',
-                border: '1px solid #e2e8f0'
-              }}>
-                <p style={{ 
-                  fontWeight: '600', 
-                  marginBottom: '12px',
-                  color: '#1e3a8a',
-                  fontSize: '0.9rem'
-                }}>
-                  📋 Demo Credentials:
-                </p>
-                <div style={{ fontSize: '0.8rem', color: '#64748b', lineHeight: '1.5' }}>
-                  <p style={{ margin: '4px 0' }}>
-                    <strong>Admin:</strong> username: admin, password: admin123
-                  </p>
-                  <p style={{ margin: '4px 0' }}>
-                    <strong>Kasir 1:</strong> username: valorantdiva1@gmail.com, password: kasir123
-                  </p>
-                  <p style={{ margin: '4px 0' }}>
-                    <strong>Kasir 2:</strong> username: valorantdiva2@gmail.com, password: admin123
-                  </p>
-                </div>
-              </div>
+              
             </div>
           </div>
         </div>
