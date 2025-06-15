@@ -5,6 +5,10 @@ const History = ({ user, onLogout }) => {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [expandedTransactions, setExpandedTransactions] = useState(new Set());
+  const [selectedTransactions, setSelectedTransactions] = useState(new Set());
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [pageSize, setPageSize] = useState(50);
 
   // Format rupiah
   const formatRupiah = (num) => {
@@ -20,10 +24,22 @@ const History = ({ user, onLogout }) => {
     });
   };
 
-  // Load transactions from Supabase
-  const loadTransactions = async () => {
+  // Load transactions from Supabase with pagination
+  const loadTransactions = async (page = 1, size = pageSize) => {
     setLoading(true);
     try {
+      // Get total count first
+      const { count, error: countError } = await supabase
+        .from('transactions')
+        .select('*', { count: 'exact', head: true });
+      
+      if (countError) throw countError;
+      setTotalCount(count || 0);
+
+      // Get paginated data
+      const from = (page - 1) * size;
+      const to = from + size - 1;
+
       const { data: transactionData, error: transactionError } = await supabase
         .from('transactions')
         .select(`
@@ -35,7 +51,7 @@ const History = ({ user, onLogout }) => {
           )
         `)
         .order('created_at', { ascending: false })
-        .limit(50); // Limit untuk performa
+        .range(from, to);
       
       if (transactionError) {
         console.error('❌ Transaction query error:', transactionError);
@@ -43,6 +59,7 @@ const History = ({ user, onLogout }) => {
       }
       
       setTransactions(transactionData || []);
+      setCurrentPage(page);
       
     } catch (error) {
       console.error('❌ History: Error loading transactions:', error);
@@ -58,6 +75,86 @@ const History = ({ user, onLogout }) => {
       }
       
       alert(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle page change
+  const handlePageChange = (newPage) => {
+    loadTransactions(newPage, pageSize);
+  };
+
+  // Handle page size change
+  const handlePageSizeChange = (newSize) => {
+    setPageSize(newSize);
+    loadTransactions(1, newSize);
+  };
+
+  // Handle select transaction
+  const handleSelectTransaction = (transactionId) => {
+    const newSelected = new Set(selectedTransactions);
+    if (newSelected.has(transactionId)) {
+      newSelected.delete(transactionId);
+    } else {
+      newSelected.add(transactionId);
+    }
+    setSelectedTransactions(newSelected);
+  };
+
+  // Handle select all/none
+  const handleSelectAll = () => {
+    if (selectedTransactions.size === transactions.length) {
+      setSelectedTransactions(new Set());
+    } else {
+      setSelectedTransactions(new Set(transactions.map(tr => tr.id)));
+    }
+  };
+
+  // Delete selected transactions
+  const handleDeleteSelected = async () => {
+    if (selectedTransactions.size === 0) {
+      alert('Pilih transaksi yang ingin dihapus');
+      return;
+    }
+
+    if (user.role !== 'admin') {
+      alert('Hanya admin yang dapat menghapus transaksi');
+      return;
+    }
+
+    if (!window.confirm(`Apakah Anda yakin ingin menghapus ${selectedTransactions.size} transaksi? Tindakan ini tidak dapat dibatalkan!`)) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const selectedIds = Array.from(selectedTransactions);
+
+      // Delete transaction items first (foreign key constraint)
+      const { error: itemsError } = await supabase
+        .from('transaction_items')
+        .delete()
+        .in('transaction_id', selectedIds);
+
+      if (itemsError) throw itemsError;
+
+      // Then delete transactions
+      const { error: transactionsError } = await supabase
+        .from('transactions')
+        .delete()
+        .in('id', selectedIds);
+
+      if (transactionsError) throw transactionsError;
+
+      setSelectedTransactions(new Set());
+      alert(`${selectedIds.length} transaksi berhasil dihapus`);
+      
+      // Reload data
+      loadTransactions(currentPage, pageSize);
+    } catch (error) {
+      console.error('Error deleting selected transactions:', error);
+      alert('Gagal menghapus transaksi: ' + error.message);
     } finally {
       setLoading(false);
     }
@@ -126,6 +223,7 @@ const History = ({ user, onLogout }) => {
       if (transactionsError) throw transactionsError;
 
       setTransactions([]);
+      setSelectedTransactions(new Set());
       alert('Semua data transaksi berhasil dihapus');
     } catch (error) {
       console.error('Error clearing transactions:', error);
@@ -162,6 +260,11 @@ const History = ({ user, onLogout }) => {
     loadTransactions();
   }, []);
 
+  // Calculate pagination info
+  const totalPages = Math.ceil(totalCount / pageSize);
+  const startItem = (currentPage - 1) * pageSize + 1;
+  const endItem = Math.min(currentPage * pageSize, totalCount);
+
   return (
     <div className="App">
       <div className="container">
@@ -177,36 +280,138 @@ const History = ({ user, onLogout }) => {
         </div>
 
         <div className="tools" style={{ marginBottom: '20px', padding: '20px', background: '#f8f9fa', borderRadius: '8px' }}>
-          <button onClick={loadTransactions} disabled={loading}>
-            🔄 {loading ? 'Memuat...' : 'Refresh Data'}
-          </button>
-          <button onClick={exportToCSV} disabled={transactions.length === 0}>
-            📁 Ekspor CSV
-          </button>
-          {transactions.length > 0 && (
-            <>
-              <button 
-                onClick={handleExpandAll} 
-                style={{ background: '#3498db', color: 'white' }}
-                disabled={expandedTransactions.size === transactions.length}
-              >
-                📖 Buka Semua
-              </button>
-              <button 
-                onClick={handleCollapseAll} 
-                style={{ background: '#95a5a6', color: 'white' }}
-                disabled={expandedTransactions.size === 0}
-              >
-                📄 Tutup Semua
-              </button>
-            </>
-          )}
-          {user.role === 'admin' && (
-            <button onClick={clearTransactions} className="danger-btn" disabled={loading}>
-              🗑️ Hapus Semua Data
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <button onClick={() => loadTransactions(currentPage, pageSize)} disabled={loading}>
+              🔄 {loading ? 'Memuat...' : 'Refresh Data'}
             </button>
-          )}
+            <button onClick={exportToCSV} disabled={transactions.length === 0}>
+              📁 Ekspor CSV
+            </button>
+            
+            {/* Page Size Selector */}
+            <select 
+              value={pageSize} 
+              onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+              style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }}
+            >
+              <option value={25}>25 per halaman</option>
+              <option value={50}>50 per halaman</option>
+              <option value={100}>100 per halaman</option>
+              <option value={200}>200 per halaman</option>
+            </select>
+
+            {transactions.length > 0 && (
+              <>
+                <button 
+                  onClick={handleExpandAll} 
+                  style={{ background: '#3498db', color: 'white' }}
+                  disabled={expandedTransactions.size === transactions.length}
+                >
+                  📖 Buka Semua
+                </button>
+                <button 
+                  onClick={handleCollapseAll} 
+                  style={{ background: '#95a5a6', color: 'white' }}
+                  disabled={expandedTransactions.size === 0}
+                >
+                  📄 Tutup Semua
+                </button>
+              </>
+            )}
+            
+            {user.role === 'admin' && (
+              <>
+                <button onClick={clearTransactions} className="danger-btn" disabled={loading}>
+                  🗑️ Hapus Semua Data
+                </button>
+                <button 
+                  onClick={handleDeleteSelected} 
+                  disabled={selectedTransactions.size === 0 || loading}
+                  style={{ 
+                    background: selectedTransactions.size > 0 ? '#e74c3c' : '#bdc3c7', 
+                    color: 'white',
+                    opacity: selectedTransactions.size > 0 ? 1 : 0.6
+                  }}
+                >
+                  🗑️ Hapus Terpilih ({selectedTransactions.size})
+                </button>
+              </>
+            )}
+          </div>
         </div>
+
+        {/* Pagination and Selection Controls */}
+        {totalCount > 0 && (
+          <div className="pagination-controls" style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            marginBottom: '20px',
+            padding: '15px',
+            background: '#ecf0f1',
+            borderRadius: '8px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={selectedTransactions.size === transactions.length && transactions.length > 0}
+                  onChange={handleSelectAll}
+                  style={{ transform: 'scale(1.2)' }}
+                />
+                <span>Pilih Semua ({selectedTransactions.size}/{transactions.length})</span>
+              </label>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '0.9rem', color: '#7f8c8d' }}>
+                Menampilkan {startItem}-{endItem} dari {totalCount} transaksi
+              </span>
+              
+              <div style={{ display: 'flex', gap: '5px' }}>
+                <button 
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1 || loading}
+                  style={{ 
+                    padding: '5px 10px', 
+                    background: currentPage === 1 ? '#bdc3c7' : '#3498db',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: currentPage === 1 ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  ← Prev
+                </button>
+                
+                <span style={{ 
+                  padding: '5px 15px', 
+                  background: '#fff', 
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  fontSize: '0.9rem'
+                }}>
+                  {currentPage} / {totalPages}
+                </span>
+                
+                <button 
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages || loading}
+                  style={{ 
+                    padding: '5px 10px', 
+                    background: currentPage === totalPages ? '#bdc3c7' : '#3498db',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: currentPage === totalPages ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  Next →
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="history-section">
           {loading ? (
@@ -221,74 +426,73 @@ const History = ({ user, onLogout }) => {
             </div>
           ) : (
             <>
-              {/* Status info */}
-              <div style={{ 
-                marginBottom: '20px', 
-                padding: '10px 15px', 
-                background: '#e8f4fd', 
-                borderRadius: '8px', 
-                fontSize: '0.9rem',
-                color: '#2c3e50',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center'
-              }}>
-                <span>
-                  📊 Total: <strong>{transactions.length}</strong> transaksi
-                </span>
-                <span>
-                  📖 Terbuka: <strong>{expandedTransactions.size}</strong> dari <strong>{transactions.length}</strong>
-                </span>
-              </div>
               <div style={{display: 'grid', gap: '15px'}}>
                 {transactions.map((tr, index) => {
                   const isExpanded = expandedTransactions.has(tr.id);
+                  const isSelected = selectedTransactions.has(tr.id);
+                  
                   return (
                     <div key={tr.id} className="history-card" style={{ 
-                      cursor: 'pointer',
                       transition: 'all 0.3s ease',
-                      border: isExpanded ? '2px solid #3498db' : '2px solid transparent'
+                      border: isExpanded ? '2px solid #3498db' : isSelected ? '2px solid #e74c3c' : '2px solid transparent',
+                      background: isSelected ? '#ffeaea' : 'white'
                     }}>
-                      {/* Header yang bisa diklik */}
-                      <div 
-                        onClick={() => handleToggleDetails(tr.id)}
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          padding: '5px 0',
-                          borderBottom: isExpanded ? '1px solid #ecf0f1' : 'none',
-                          marginBottom: isExpanded ? '15px' : '0',
-                          borderRadius: '8px',
-                          transition: 'all 0.3s ease'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = '#f8f9fa';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = 'transparent';
-                        }}
-                      >
-                        <div>
-                          <h4 style={{ margin: '0', color: '#2c3e50' }}>
-                            🧾 Transaksi #{tr.transaction_number}
-                          </h4>
-                          <div style={{ display: 'flex', gap: '20px', marginTop: '8px', fontSize: '0.9rem', color: '#7f8c8d' }}>
-                            <span>👤 {tr.customer_name}</span>
-                            <span>📅 {new Date(tr.created_at).toLocaleDateString('id-ID')}</span>
-                            <span style={{ fontWeight: '600', color: '#27ae60' }}>
-                              💰 Rp {formatRupiah(tr.total_amount)}
-                            </span>
+                      {/* Header dengan checkbox */}
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '15px' }}>
+                        {user.role === 'admin' && (
+                          <label style={{ display: 'flex', alignItems: 'center', marginTop: '5px' }}>
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => handleSelectTransaction(tr.id)}
+                              onClick={(e) => e.stopPropagation()}
+                              style={{ transform: 'scale(1.3)', cursor: 'pointer' }}
+                            />
+                          </label>
+                        )}
+                        
+                        <div 
+                          onClick={() => handleToggleDetails(tr.id)}
+                          style={{
+                            flex: 1,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            padding: '5px 0',
+                            borderBottom: isExpanded ? '1px solid #ecf0f1' : 'none',
+                            marginBottom: isExpanded ? '15px' : '0',
+                            borderRadius: '8px',
+                            transition: 'all 0.3s ease'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = '#f8f9fa';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                          }}
+                        >
+                          <div>
+                            <h4 style={{ margin: '0', color: '#2c3e50' }}>
+                              🧾 Transaksi #{tr.transaction_number}
+                            </h4>
+                            <div style={{ display: 'flex', gap: '20px', marginTop: '8px', fontSize: '0.9rem', color: '#7f8c8d' }}>
+                              <span>👤 {tr.customer_name}</span>
+                              <span>📅 {new Date(tr.created_at).toLocaleDateString('id-ID')}</span>
+                              <span style={{ fontWeight: '600', color: '#27ae60' }}>
+                                💰 Rp {formatRupiah(tr.total_amount)}
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                        <div style={{ 
-                          fontSize: '1.5rem', 
-                          transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                          transition: 'transform 0.3s ease',
-                          color: '#3498db',
-                          fontWeight: 'bold'
-                        }}>
-                          ⌄
+                          <div style={{ 
+                            fontSize: '1.5rem', 
+                            transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                            transition: 'transform 0.3s ease',
+                            color: '#3498db',
+                            fontWeight: 'bold'
+                          }}>
+                            ⌄
+                          </div>
                         </div>
                       </div>
 
@@ -296,7 +500,8 @@ const History = ({ user, onLogout }) => {
                       {isExpanded && (
                         <div style={{
                           animation: 'slideDown 0.3s ease',
-                          overflow: 'hidden'
+                          overflow: 'hidden',
+                          marginLeft: user.role === 'admin' ? '35px' : '0'
                         }}>
                           <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px', margin: '15px 0'}}>
                             <p><strong>💰 Pembayaran:</strong> {tr.payment_method}</p>

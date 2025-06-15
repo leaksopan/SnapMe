@@ -1,5 +1,6 @@
 import React, { useState, lazy, Suspense, useEffect } from 'react';
 import './App.css';
+import { loadUserPermissions, hasModuleAccess } from './utils/permissions';
 
 // Import page components - lazy load untuk optimasi
 import Login from './pages/Login';
@@ -14,6 +15,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [currentPage, setCurrentPage] = useState('kasir');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [userPermissions, setUserPermissions] = useState({});
 
   // Update document title berdasarkan halaman aktif
   useEffect(() => {
@@ -28,6 +30,26 @@ function App() {
     document.title = user ? pageTitle[currentPage] || 'Kasir SnapMe' : 'Login - SnapMe';
   }, [currentPage, user]);
 
+  // Load user permissions when user logs in
+  useEffect(() => {
+    const loadPermissions = async () => {
+      if (user && user.id) {
+        try {
+          console.log('🔄 Loading permissions for user:', user.id);
+          const permissions = await loadUserPermissions(user.id);
+          console.log('✅ Permissions loaded:', permissions);
+          setUserPermissions(permissions);
+        } catch (error) {
+          console.error('❌ Failed to load permissions:', error);
+          // Set empty permissions as fallback
+          setUserPermissions({});
+        }
+      }
+    };
+
+    loadPermissions();
+  }, [user]);
+
   // Handle login
   const handleLogin = async (userData) => {
     setUser(userData);
@@ -37,6 +59,7 @@ function App() {
   const handleLogout = async () => {
     setUser(null);
     setCurrentPage('kasir');
+    setUserPermissions({});
   };
 
   if (!user) {
@@ -44,17 +67,28 @@ function App() {
   }
 
   const renderPage = () => {
+    // Check if user has access to the current page
+    const hasAccess = hasModuleAccess(user, userPermissions, currentPage);
+    
+    if (!hasAccess) {
+      // Redirect to kasir if no access
+      if (currentPage !== 'kasir') {
+        setCurrentPage('kasir');
+      }
+      return <Kasir user={user} onLogout={handleLogout} />;
+    }
+
     let pageComponent;
     switch (currentPage) {
       case 'kasir':
         pageComponent = <Kasir user={user} onLogout={handleLogout} />;
         break;
       case 'dashboard':
-        pageComponent = user.role === 'admin' ? (
+        pageComponent = (
           <Suspense fallback={<div style={{ textAlign: 'center', padding: '50px' }}>⏳ Memuat dashboard...</div>}>
             <Dashboard user={user} onLogout={handleLogout} />
           </Suspense>
-        ) : <Kasir user={user} onLogout={handleLogout} />;
+        );
         break;
       case 'history':
         pageComponent = (
@@ -71,11 +105,11 @@ function App() {
         );
         break;
       case 'karyawan':
-        pageComponent = user.role === 'admin' ? (
+        pageComponent = (
           <Suspense fallback={<div style={{ textAlign: 'center', padding: '50px' }}>⏳ Memuat halaman...</div>}>
             <Karyawan user={user} onLogout={handleLogout} />
           </Suspense>
-        ) : <Kasir user={user} onLogout={handleLogout} />;
+        );
         break;
       default:
         pageComponent = <Kasir user={user} onLogout={handleLogout} />;
@@ -90,6 +124,7 @@ function App() {
         currentPage={currentPage}
         setCurrentPage={setCurrentPage}
         user={user}
+        userPermissions={userPermissions}
         isOpen={sidebarOpen}
         setIsOpen={setSidebarOpen}
         onLogout={handleLogout}

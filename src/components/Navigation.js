@@ -1,16 +1,19 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import SnapMeLogo, { SnapMeIcon } from './SnapMeLogo';
+import { getAvailablePages } from '../utils/permissions';
 
-const Navigation = ({ currentPage, setCurrentPage, user, isOpen, setIsOpen, onLogout }) => {
-  const pages = [
-    { key: 'kasir', name: 'Kasir', icon: '💳', description: 'Transaksi Penjualan' },
-    { key: 'dashboard', name: 'Dashboard', icon: '📊', description: 'Analytics & Monitoring', adminOnly: true },
-    { key: 'history', name: 'Riwayat', icon: '📋', description: 'Riwayat Transaksi' },
-    { key: 'stok', name: 'Stok', icon: '📦', description: 'Manajemen Stok' },
-    { key: 'karyawan', name: 'Karyawan', icon: '👥', description: 'Manajemen Karyawan', adminOnly: true }
-  ];
+const Navigation = ({ currentPage, setCurrentPage, user, userPermissions, isOpen, setIsOpen, onLogout }) => {
+  const [availablePages, setAvailablePages] = useState([]);
 
-  const filteredPages = pages.filter(page => !page.adminOnly || user.role === 'admin');
+  // Get available pages when user or permissions change
+  useEffect(() => {
+    if (user) {
+      const pages = getAvailablePages(user, userPermissions || {});
+      setAvailablePages(pages);
+    }
+  }, [user, userPermissions]);
+
+  const filteredPages = availablePages;
 
   return (
     <>

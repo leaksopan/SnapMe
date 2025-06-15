@@ -3,9 +3,12 @@ import { supabase } from '../supabaseClient';
 
 const Karyawan = ({ user, onLogout }) => {
   const [users, setUsers] = useState([]);
+  const [userPermissions, setUserPermissions] = useState({});
   const [loading, setLoading] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
+  const [showPermissionModal, setShowPermissionModal] = useState(false);
+  const [selectedUserForPermission, setSelectedUserForPermission] = useState(null);
   const [formData, setFormData] = useState({
     username: '',
     password_hash: '',
@@ -18,6 +21,13 @@ const Karyawan = ({ user, onLogout }) => {
   const [usernameCheckLoading, setUsernameCheckLoading] = useState(false);
   const [usernameError, setUsernameError] = useState('');
 
+  // Modul yang bisa di-custom permission
+  const customizableModules = [
+    { key: 'dashboard', name: 'Dashboard', icon: '📊', description: 'Analytics & Monitoring' },
+    { key: 'history', name: 'Riwayat', icon: '📋', description: 'Riwayat Transaksi' },
+    { key: 'stok', name: 'Stok', icon: '📦', description: 'Manajemen Stok' }
+  ];
+
   // Get current date
   const getCurrentDate = () => {
     return new Date().toLocaleDateString("id-ID", {
@@ -26,6 +36,30 @@ const Karyawan = ({ user, onLogout }) => {
       day: 'numeric',
     });
   };
+
+  // Load user permissions
+  const loadUserPermissions = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('user_permissions')
+        .select('*');
+      
+      if (error) throw error;
+      
+      // Organize permissions by user_id
+      const permissionsByUser = {};
+      data.forEach(permission => {
+        if (!permissionsByUser[permission.user_id]) {
+          permissionsByUser[permission.user_id] = {};
+        }
+        permissionsByUser[permission.user_id][permission.module_name] = permission.has_access;
+      });
+      
+      setUserPermissions(permissionsByUser);
+    } catch (error) {
+      console.error('❌ Error loading user permissions:', error);
+    }
+  }, []);
 
   // Load users from users table with optimized performance
   const loadUsers = useCallback(async () => {
@@ -45,13 +79,66 @@ const Karyawan = ({ user, onLogout }) => {
       
       console.log(`✅ Loaded ${data?.length || 0} users successfully`);
       setUsers(data || []);
+      
+      // Load permissions after users
+      await loadUserPermissions();
     } catch (error) {
       console.error('❌ Error loading users:', error);
       alert('Gagal memuat data karyawan: ' + error.message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [loadUserPermissions]);
+
+  // Create default permissions for new user
+  const createDefaultPermissions = async (userId, role) => {
+    try {
+      const defaultPermissions = customizableModules.map(module => ({
+        user_id: userId,
+        module_name: module.key,
+        has_access: role === 'admin' // Admin gets all access by default
+      }));
+
+      const { error } = await supabase
+        .from('user_permissions')
+        .insert(defaultPermissions);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('❌ Error creating default permissions:', error);
+    }
+  };
+
+  // Update user permission
+  const updateUserPermission = async (userId, moduleName, hasAccess) => {
+    try {
+      const { error } = await supabase
+        .from('user_permissions')
+        .upsert({
+          user_id: userId,
+          module_name: moduleName,
+          has_access: hasAccess
+        }, {
+          onConflict: 'user_id,module_name'
+        });
+
+      if (error) throw error;
+
+      // Update local state
+      setUserPermissions(prev => ({
+        ...prev,
+        [userId]: {
+          ...prev[userId],
+          [moduleName]: hasAccess
+        }
+      }));
+
+      console.log(`✅ Permission ${moduleName} for user ${userId} updated to ${hasAccess}`);
+    } catch (error) {
+      console.error('❌ Error updating permission:', error);
+      alert('Gagal mengupdate permission: ' + error.message);
+    }
+  };
 
   // Debounced username check function
   const checkUsernameAvailability = useCallback(async (username) => {
@@ -121,7 +208,7 @@ const Karyawan = ({ user, onLogout }) => {
       console.log('✅ Creating user with validated username...');
 
       // Insert new user (username already validated by debounced check)
-      const { error } = await supabase
+      const { data: newUserData, error } = await supabase
         .from('users')
         .insert([{
           username: formData.username,
@@ -129,9 +216,15 @@ const Karyawan = ({ user, onLogout }) => {
           full_name: formData.full_name,
           role: formData.role,
           is_active: formData.is_active
-        }]);
+        }])
+        .select();
 
       if (error) throw error;
+
+      // Create default permissions for new user
+      if (newUserData && newUserData[0]) {
+        await createDefaultPermissions(newUserData[0].id, formData.role);
+      }
 
       setFormData({
         username: '',
@@ -301,6 +394,17 @@ const Karyawan = ({ user, onLogout }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Handle permission management
+  const openPermissionModal = (userToManage) => {
+    setSelectedUserForPermission(userToManage);
+    setShowPermissionModal(true);
+  };
+
+  const closePermissionModal = () => {
+    setSelectedUserForPermission(null);
+    setShowPermissionModal(false);
   };
 
   // Load users on component mount
@@ -525,6 +629,54 @@ const Karyawan = ({ user, onLogout }) => {
                                 📅 Dibuat: {new Date(userItem.created_at).toLocaleDateString('id-ID')}
                               </span>
                             </div>
+                              <div>
+                              <div style={{ fontSize: '0.8rem', color: '#7f8c8d', marginBottom: '4px' }}>
+                                🔐 <strong>Akses Modul:</strong>
+                              </div>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                {/* Kasir - always accessible */}
+                                <span style={{
+                                  fontSize: '0.7rem',
+                                  padding: '2px 6px',
+                                  borderRadius: '8px',
+                                  background: '#27ae60',
+                                  color: 'white'
+                                }}>
+                                  💳 Kasir
+                                </span>
+                                
+                                {/* Customizable modules */}
+                                {customizableModules.map(module => {
+                                  const hasAccess = userPermissions[userItem.id]?.[module.key] || false;
+                                  if (!hasAccess) return null;
+                                  
+                                  return (
+                                    <span key={module.key} style={{
+                                      fontSize: '0.7rem',
+                                      padding: '2px 6px',
+                                      borderRadius: '8px',
+                                      background: '#3498db',
+                                      color: 'white'
+                                    }}>
+                                      {module.icon} {module.name}
+                                    </span>
+                                  );
+                                })}
+                                
+                                {/* Karyawan - admin only */}
+                                {userItem.role === 'admin' && (
+                                  <span style={{
+                                    fontSize: '0.7rem',
+                                    padding: '2px 6px',
+                                    borderRadius: '8px',
+                                    background: '#e74c3c',
+                                    color: 'white'
+                                  }}>
+                                    👥 Karyawan
+                                  </span>
+                                )}
+                              </div>
+                            </div>
                             {user.role === 'admin' && (
                               <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
                                 <button 
@@ -539,6 +691,19 @@ const Karyawan = ({ user, onLogout }) => {
                                   }}
                                 >
                                   ✏️ Edit
+                                </button>
+                                <button 
+                                  onClick={() => openPermissionModal(userItem)}
+                                  style={{ 
+                                    background: '#8e44ad', 
+                                    color: 'white', 
+                                    border: 'none', 
+                                    padding: '5px 10px', 
+                                    borderRadius: '3px',
+                                    fontSize: '0.8rem'
+                                  }}
+                                >
+                                  🔐 Permission
                                 </button>
                                 <button 
                                   onClick={() => resetPassword(userItem)}
@@ -580,6 +745,111 @@ const Karyawan = ({ user, onLogout }) => {
             </div>
           )}
         </div>
+
+        {/* Permission Management Modal */}
+        {showPermissionModal && selectedUserForPermission && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 1000
+          }}>
+            <div style={{
+              background: 'white',
+              padding: '30px',
+              borderRadius: '10px',
+              width: '500px',
+              maxWidth: '90%',
+              maxHeight: '80%',
+              overflow: 'auto'
+            }}>
+              <h3 style={{ marginBottom: '20px', color: '#2c3e50' }}>
+                🔐 Atur Permission untuk: {selectedUserForPermission.full_name}
+              </h3>
+              
+              <div style={{ marginBottom: '20px', padding: '15px', background: '#f8f9fa', borderRadius: '8px' }}>
+                <div style={{ fontSize: '0.9rem', color: '#7f8c8d' }}>
+                  <strong>Username:</strong> {selectedUserForPermission.username}
+                </div>
+                <div style={{ fontSize: '0.9rem', color: '#7f8c8d' }}>
+                  <strong>Role:</strong> {selectedUserForPermission.role === 'admin' ? '👑 Administrator' : '👨‍💼 Kasir'}
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '20px' }}>
+                <h4 style={{ marginBottom: '15px', color: '#34495e' }}>Akses Modul:</h4>
+                <div style={{ fontSize: '0.85rem', color: '#7f8c8d', marginBottom: '15px' }}>
+                  💳 <strong>Kasir:</strong> Selalu dapat diakses oleh semua user
+                  <br />
+                  👥 <strong>Karyawan:</strong> Hanya dapat diakses oleh Administrator
+                </div>
+                
+                {customizableModules.map(module => {
+                  const currentPermission = userPermissions[selectedUserForPermission.id]?.[module.key] || false;
+                  
+                  return (
+                    <div key={module.key} style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '12px',
+                      marginBottom: '10px',
+                      border: '1px solid #ddd',
+                      borderRadius: '8px',
+                      background: currentPermission ? '#d5f4e6' : '#fff'
+                    }}>
+                      <div>
+                        <div style={{ fontWeight: '600', fontSize: '0.9rem' }}>
+                          {module.icon} {module.name}
+                        </div>
+                        <div style={{ fontSize: '0.8rem', color: '#7f8c8d' }}>
+                          {module.description}
+                        </div>
+                      </div>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={currentPermission}
+                          onChange={(e) => updateUserPermission(
+                            selectedUserForPermission.id,
+                            module.key,
+                            e.target.checked
+                          )}
+                          style={{ width: '18px', height: '18px' }}
+                        />
+                        <span style={{ fontSize: '0.8rem', color: currentPermission ? '#27ae60' : '#e74c3c' }}>
+                          {currentPermission ? '✅ Dapat Akses' : '❌ Tidak Dapat Akses'}
+                        </span>
+                      </label>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                <button
+                  onClick={closePermissionModal}
+                  style={{
+                    background: '#95a5a6',
+                    color: 'white',
+                    border: 'none',
+                    padding: '10px 20px',
+                    borderRadius: '5px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  ✅ Selesai
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

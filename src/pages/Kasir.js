@@ -219,6 +219,11 @@ const Kasir = ({ user, onLogout, sidebarOpen }) => {
     try {
       console.log('📝 Starting transaction process...');
       
+      // Validate user object
+      if (!user || !user.id) {
+        throw new Error('User tidak valid atau tidak memiliki ID');
+      }
+      
       // Generate transaction number
       const transactionNumber = `TRX-${Date.now()}`;
       
