@@ -19,6 +19,7 @@ const Kasir = ({ user, onLogout, sidebarOpen }) => {
   const [items, setItems] = useState({
     studio: [],
     addon: [],
+    fotogroup: [],
     minuman: [],
     snack: [],
   });
@@ -27,14 +28,18 @@ const Kasir = ({ user, onLogout, sidebarOpen }) => {
   const itemsPanelRef = useRef(null);
   const scrollPositions = useRef({});
 
+  // State untuk flexible pricing fotogroup
+  const [fotogroupPrices, setFotogroupPrices] = useState({});
+  const [showPriceInput, setShowPriceInput] = useState(null);
+
   // Format rupiah
   const formatRupiah = (num) => {
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   };
 
-  // Check if item has unlimited stock (studio dan addon)
+  // Check if item has unlimited stock (studio, addon, dan fotogroup)
   const isUnlimitedStock = (category) => {
-    return category === "studio" || category === "addon";
+    return category === "studio" || category === "addon" || category === "fotogroup";
   };
 
   // Get current date
@@ -63,6 +68,7 @@ const Kasir = ({ user, onLogout, sidebarOpen }) => {
       const categorizedItems = {
         studio: data.filter((item) => item.category === "studio"),
         addon: data.filter((item) => item.category === "addon"),
+        fotogroup: data.filter((item) => item.category === "fotogroup"),
         minuman: data.filter((item) => item.category === "minuman"),
         snack: data.filter((item) => item.category === "snack"),
       };
@@ -88,6 +94,7 @@ const Kasir = ({ user, onLogout, sidebarOpen }) => {
     const allItems = [
       ...items.studio,
       ...items.addon,
+      ...items.fotogroup,
       ...items.minuman,
       ...items.snack,
     ];
@@ -95,16 +102,22 @@ const Kasir = ({ user, onLogout, sidebarOpen }) => {
       .filter(([itemId, qty]) => qty > 0)
       .map(([itemId, qty]) => {
         const item = allItems.find((i) => i.id === itemId);
-        return item
-          ? {
-              ...item,
-              qty,
-              subtotal: item.price * qty,
-            }
-          : null;
+        if (!item) return null;
+        
+        // Untuk fotogroup, gunakan custom price jika ada
+        const effectivePrice = item.category === 'fotogroup' 
+          ? (fotogroupPrices[itemId] || 0)
+          : item.price;
+        
+        return {
+          ...item,
+          qty,
+          effectivePrice, // Harga yang digunakan untuk perhitungan
+          subtotal: effectivePrice * qty,
+        };
       })
       .filter(Boolean);
-  }, [cart, items]);
+  }, [cart, items, fotogroupPrices]);
 
   // Memoized total calculation
   const totalAmount = useMemo(() => {
@@ -169,12 +182,33 @@ const Kasir = ({ user, onLogout, sidebarOpen }) => {
 
   // Handle single click to add item
   const handleAddItem = useCallback(
-    (itemId) => {
+    (itemId, item) => {
+      // Jika item adalah fotogroup dan belum ada harga, tampilkan input harga
+      if (item && item.category === 'fotogroup' && !fotogroupPrices[itemId]) {
+        setShowPriceInput(itemId);
+        return;
+      }
+      
       const currentQty = cart[itemId] || 0;
       updateCart(itemId, currentQty + 1);
     },
-    [cart, updateCart]
+    [cart, updateCart, fotogroupPrices]
   );
+
+  // Handle setting price for fotogroup
+  const handleSetFotogroupPrice = useCallback((itemId, price) => {
+    const numericPrice = parseInt(price) || 0;
+    if (numericPrice > 0) {
+      setFotogroupPrices(prev => ({
+        ...prev,
+        [itemId]: numericPrice
+      }));
+      // Setelah set harga, tambahkan ke cart
+      const currentQty = cart[itemId] || 0;
+      updateCart(itemId, currentQty + 1);
+    }
+    setShowPriceInput(null);
+  }, [cart, updateCart]);
 
   // Handle right click to remove item
   const handleRemoveItem = useCallback(
@@ -283,7 +317,7 @@ const Kasir = ({ user, onLogout, sidebarOpen }) => {
         transaction_id: transaction.id,
         item_id: item.id,
         quantity: parseInt(item.qty),
-        unit_price: parseFloat(item.price),
+        unit_price: parseFloat(item.effectivePrice || item.price),
         subtotal: parseFloat(item.subtotal),
       }));
 
@@ -326,8 +360,9 @@ const Kasir = ({ user, onLogout, sidebarOpen }) => {
       let yPos = 130;
 
       getCartItems().forEach((item) => {
+        const displayPrice = item.effectivePrice || item.price;
         doc.text(`${item.name}`, 20, yPos);
-        doc.text(`${item.qty} x Rp ${formatRupiah(item.price)}`, 20, yPos + 10);
+        doc.text(`${item.qty} x Rp ${formatRupiah(displayPrice)}`, 20, yPos + 10);
         doc.text(`Rp ${formatRupiah(item.subtotal)}`, 150, yPos + 5);
         yPos += 25;
       });
@@ -349,6 +384,8 @@ const Kasir = ({ user, onLogout, sidebarOpen }) => {
 
       // Clear form
       setCart({});
+      setFotogroupPrices({});
+      setShowPriceInput(null);
       setCustomerName("");
       setPaymentMethod("");
       setCustomerPayment(""); // Clear customer payment
@@ -379,7 +416,147 @@ const Kasir = ({ user, onLogout, sidebarOpen }) => {
   // Clear cart
   const clearCart = () => {
     setCart({});
+    setFotogroupPrices({});
+    setShowPriceInput(null);
     setCustomerPayment(""); // Also clear customer payment when clearing cart
+  };
+
+  // Price Input Modal for Fotogroup
+  const PriceInputModal = ({ itemId, itemName, onSetPrice, onCancel }) => {
+    const [price, setPrice] = useState('');
+
+    const handleSubmit = (e) => {
+      e.preventDefault();
+      const numericPrice = parseInt(price.replace(/\D/g, '')) || 0;
+      if (numericPrice > 0) {
+        onSetPrice(itemId, numericPrice);
+      } else {
+        alert('Silakan masukkan harga yang valid!');
+      }
+    };
+
+    const handlePriceChange = (e) => {
+      const value = e.target.value.replace(/[^\d]/g, '');
+      setPrice(value);
+    };
+
+    return (
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 9999
+      }}>
+        <div style={{
+          backgroundColor: 'white',
+          padding: '30px',
+          borderRadius: '12px',
+          minWidth: '400px',
+          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
+        }}>
+          <h3 style={{ margin: '0 0 20px 0', color: '#2c3e50', textAlign: 'center' }}>
+            👥 Set Harga Foto Group
+          </h3>
+          <p style={{ margin: '0 0 20px 0', color: '#7f8c8d', textAlign: 'center' }}>
+            <strong>{itemName}</strong>
+          </p>
+          
+          <form onSubmit={handleSubmit}>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>
+              💰 Harga:
+            </label>
+            <input
+              type="text"
+              value={price ? `Rp ${formatRupiah(price)}` : ''}
+              onChange={handlePriceChange}
+              placeholder="Masukkan harga (contoh: 500000)"
+              style={{
+                width: '100%',
+                padding: '12px',
+                border: '2px solid #ddd',
+                borderRadius: '8px',
+                fontSize: '16px',
+                boxSizing: 'border-box',
+                marginBottom: '20px'
+              }}
+              autoFocus
+            />
+            
+            {/* Quick price buttons */}
+            <div style={{ marginBottom: '20px' }}>
+              <p style={{ margin: '0 0 10px 0', fontSize: '14px', color: '#7f8c8d' }}>
+                💡 Harga Cepat:
+              </p>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 1fr)',
+                gap: '8px'
+              }}>
+                {[100000, 200000, 300000, 500000, 750000, 1000000].map(amount => (
+                  <button
+                    key={amount}
+                    type="button"
+                    onClick={() => setPrice(amount.toString())}
+                    style={{
+                      padding: '8px 12px',
+                      border: '1px solid #3498db',
+                      background: 'white',
+                      color: '#3498db',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {amount >= 1000000 ? `${amount/1000000}jt` : `${amount/1000}rb`}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button
+                type="button"
+                onClick={onCancel}
+                style={{
+                  flex: 1,
+                  padding: '12px',
+                  border: '1px solid #e74c3c',
+                  background: 'white',
+                  color: '#e74c3c',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  cursor: 'pointer'
+                }}
+              >
+                ❌ Batal
+              </button>
+              <button
+                type="submit"
+                style={{
+                  flex: 1,
+                  padding: '12px',
+                  border: 'none',
+                  background: '#27ae60',
+                  color: 'white',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  fontWeight: '600'
+                }}
+              >
+                ✅ Set Harga
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
   };
 
   // Memoized ItemSection component to prevent unnecessary re-renders
@@ -409,7 +586,7 @@ const Kasir = ({ user, onLogout, sidebarOpen }) => {
         {itemList.map((item) => (
           <div
             key={item.id}
-            onClick={() => handleAddItem(item.id)}
+            onClick={() => handleAddItem(item.id, item)}
             onContextMenu={(e) => handleRemoveItem(e, item.id)}
             style={{
               display: "flex",
@@ -450,7 +627,15 @@ const Kasir = ({ user, onLogout, sidebarOpen }) => {
                   fontSize: "0.8rem",
                 }}
               >
-                Rp {formatRupiah(item.price)}
+                {item.category === 'fotogroup' ? (
+                  fotogroupPrices[item.id] ? (
+                    `Rp ${formatRupiah(fotogroupPrices[item.id])}`
+                  ) : (
+                    "Harga Fleksibel"
+                  )
+                ) : (
+                  `Rp ${formatRupiah(item.price)}`
+                )}
               </div>
               <div
                 style={{
@@ -460,7 +645,11 @@ const Kasir = ({ user, onLogout, sidebarOpen }) => {
                   fontStyle: "italic",
                 }}
               >
-                Click: +1 | Right Click: -1
+                {item.category === 'fotogroup' ? (
+                  fotogroupPrices[item.id] ? "Click: +1 | Right Click: -1" : "Click: Set Harga"
+                ) : (
+                  "Click: +1 | Right Click: -1"
+                )}
               </div>
             </div>
             {cart[item.id] > 0 && (
@@ -496,6 +685,19 @@ const Kasir = ({ user, onLogout, sidebarOpen }) => {
         background: "#f8f9fa",
       }}
     >
+      {/* Price Input Modal */}
+      {showPriceInput && (
+        <PriceInputModal
+          itemId={showPriceInput}
+          itemName={(() => {
+            const allItems = [...items.studio, ...items.addon, ...items.fotogroup, ...items.minuman, ...items.snack];
+            const item = allItems.find(i => i.id === showPriceInput);
+            return item ? item.name : 'Unknown Item';
+          })()}
+          onSetPrice={handleSetFotogroupPrice}
+          onCancel={() => setShowPriceInput(null)}
+        />
+      )}
       {/* Main Content */}
       <div
         style={{
@@ -546,6 +748,11 @@ const Kasir = ({ user, onLogout, sidebarOpen }) => {
                 itemList={items.addon}
                 icon="🖼️"
               />
+                              <ItemSection
+                  title="Add-on Fotogroup"
+                  itemList={items.fotogroup}
+                  icon="👥"
+                />
               <ItemSection
                 title="Add-on Minuman"
                 itemList={items.minuman}
@@ -677,7 +884,7 @@ const Kasir = ({ user, onLogout, sidebarOpen }) => {
                           {item.name}
                         </div>
                         <div style={{ color: "#7f8c8d", fontSize: "0.8rem" }}>
-                          {item.qty} x Rp {formatRupiah(item.price)}
+                          {item.qty} x Rp {formatRupiah(item.effectivePrice || item.price)}
                         </div>
                       </div>
                       <div style={{ fontWeight: "700", color: "#27ae60" }}>

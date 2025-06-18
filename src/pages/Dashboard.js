@@ -819,7 +819,7 @@ const Dashboard = ({ user, onLogout }) => {
       if (previousError) throw previousError;
 
       // 3. Kategorisasi data
-      const categoryA = ['studio', 'addon']; // Paket Studio & Add-on Cetak Foto
+      const categoryA = ['studio', 'addon', 'fotogroup']; // Paket Studio, Add-on Cetak Foto & Foto Group
       const categoryB = ['minuman', 'snack']; // Add-on Minuman & Snack
 
       // 4. Process data per hari
@@ -944,7 +944,7 @@ const Dashboard = ({ user, onLogout }) => {
           label: `${formatDate(new Date(startDate))} - ${formatDate(new Date(endDate))}`
         },
         categoryA: {
-          name: 'Studio & Cetak Foto',
+          name: 'Studio, Cetak Foto & Foto Group',
           total: totalCategoryA,
           previous: previousCategoryA,
           growth: growthA,
@@ -1016,7 +1016,7 @@ const Dashboard = ({ user, onLogout }) => {
       // Summary
       csvContent += `RINGKASAN TOTAL\n`;
       csvContent += `Total Pendapatan,${formatRupiah(reportData.summary.totalRevenue)}\n`;
-      csvContent += `Revenue Kategori A (Studio & Cetak),${formatRupiah(reportData.categoryA.total.revenue)}\n`;
+      csvContent += `Revenue Kategori A (Studio, Cetak & Foto Group),${formatRupiah(reportData.categoryA.total.revenue)}\n`;
       csvContent += `Revenue Kategori B (Minuman & Snack),${formatRupiah(reportData.categoryB.total.revenue)}\n`;
       csvContent += `Total Quantity,${reportData.summary.totalQuantity.toLocaleString('id-ID')} items\n`;
       csvContent += `Total Transaksi,${reportData.summary.totalTransactions.toLocaleString('id-ID')} transaksi\n`;
