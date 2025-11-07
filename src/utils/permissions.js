@@ -57,8 +57,8 @@ export const hasModuleAccess = (user, userPermissions = {}, moduleName) => {
     return user.role === 'admin';
   }
   
-  // For customizable modules (dashboard, history, stok, reservasi)
-  if (['dashboard', 'history', 'stok', 'reservasi'].includes(moduleName)) {
+  // For customizable modules (dashboard, history, stok, reservasi, claim_photo)
+  if (['dashboard', 'history', 'stok', 'reservasi', 'claim_photo'].includes(moduleName)) {
     // Admin gets access based on their permissions (can be customized)
     if (user.role === 'admin') {
       // Default to true if permission not set for admin
@@ -84,6 +84,7 @@ export const getAvailablePages = (user, userPermissions = {}) => {
     { key: 'history', name: 'Riwayat', icon: '📋', description: 'Riwayat Transaksi' },
     { key: 'stok', name: 'Stok', icon: '📦', description: 'Manajemen Stok' },
     { key: 'reservasi', name: 'Reservasi Online', icon: '📅', description: 'Manajemen Reservasi' },
+    { key: 'claim_photo', name: 'Claim Photo', icon: '📸', description: 'Klaim Foto Pelanggan' },
     { key: 'karyawan', name: 'Karyawan', icon: '👥', description: 'Manajemen Karyawan', adminOnly: true }
   ];
 

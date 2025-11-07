@@ -10,6 +10,7 @@ const Dashboard = lazy(() => import("./pages/Dashboard"));
 const History = lazy(() => import("./pages/History"));
 const Stok = lazy(() => import("./pages/Stok"));
 const Reservasi = lazy(() => import("./pages/Reservasi"));
+const ClaimPhoto = lazy(() => import("./pages/ClaimPhoto"));
 const Karyawan = lazy(() => import("./pages/Karyawan"));
 
 function App() {
@@ -26,6 +27,7 @@ function App() {
       history: "Riwayat Transaksi - SnapMe",
       stok: "Manajemen Stok - SnapMe",
       reservasi: "Reservasi Online - SnapMe",
+      claim_photo: "Claim Photo - SnapMe",
       karyawan: "Manajemen Karyawan - SnapMe",
     };
 
@@ -136,6 +138,19 @@ function App() {
             }
           >
             <Reservasi user={user} onLogout={handleLogout} />
+          </Suspense>
+        );
+        break;
+      case "claim_photo":
+        pageComponent = (
+          <Suspense
+            fallback={
+              <div style={{ textAlign: "center", padding: "50px" }}>
+                ⏳ Memuat halaman...
+              </div>
+            }
+          >
+            <ClaimPhoto user={user} onLogout={handleLogout} />
           </Suspense>
         );
         break;
