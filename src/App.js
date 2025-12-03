@@ -175,7 +175,7 @@ function App() {
   };
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh" }}>
+    <div className="dark flex min-h-screen bg-background">
       <Navigation
         currentPage={currentPage}
         setCurrentPage={setCurrentPage}
@@ -186,11 +186,8 @@ function App() {
         onLogout={handleLogout}
       />
       <div
-        style={{
-          marginLeft: sidebarOpen ? "280px" : "70px",
-          width: "100%",
-          transition: "margin-left 0.3s ease",
-        }}
+        className="w-full transition-all duration-300"
+        style={{ marginLeft: sidebarOpen ? "256px" : "64px" }}
       >
         {renderPage()}
       </div>

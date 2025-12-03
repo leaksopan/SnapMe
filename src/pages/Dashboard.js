@@ -1,7 +1,16 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Badge } from '../components/ui/badge';
+import { Button } from '../components/ui/button';
+import { ToggleGroup, ToggleGroupItem } from '../components/ui/toggle-group';
+import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
+import { Calendar } from '../components/ui/calendar';
+import { format } from 'date-fns';
+import { TrendingUp, DollarSign, ShoppingCart, RefreshCw, Download, Wifi, WifiOff, AlertTriangle, CalendarIcon } from 'lucide-react';
 
-const Dashboard = ({ user, onLogout }) => {
+const Dashboard = ({ user }) => {
   const [dashboardData, setDashboardData] = useState({
     todaySales: 0,
     totalTransactions: 0,
@@ -14,1720 +23,582 @@ const Dashboard = ({ user, onLogout }) => {
   });
   const [loading, setLoading] = useState(true);
   const [reportLoading, setReportLoading] = useState(false);
-  const [selectedPeriod, setSelectedPeriod] = useState('today'); // today, week, month, custom
-  const [selectedChart, setSelectedChart] = useState('sales'); // sales, transactions
-  const [customStartDate, setCustomStartDate] = useState('');
-  const [customEndDate, setCustomEndDate] = useState('');
+  const [selectedPeriod, setSelectedPeriod] = useState('today');
+  const [dateRange, setDateRange] = useState({ from: null, to: null });
+  const [appliedDateRange, setAppliedDateRange] = useState({ from: null, to: null });
   const [showCustomPicker, setShowCustomPicker] = useState(false);
   const [isRealTimeConnected, setIsRealTimeConnected] = useState(false);
   const [lastUpdate, setLastUpdate] = useState(new Date());
-  const [realtimeEvents, setRealtimeEvents] = useState([]);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
 
-  // Format rupiah
-  const formatRupiah = (num) => {
-    return `Rp ${num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
-  };
+  const formatRupiah = (num) => `Rp ${num?.toLocaleString('id-ID') || 0}`;
+  const formatDate = (date) => new Date(date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+  const getCurrentDate = () => new Date().toLocaleDateString("id-ID", { year: 'numeric', month: 'long', day: 'numeric' });
 
-  // Format tanggal
-  const formatDate = (date) => {
-    return new Date(date).toLocaleDateString('id-ID', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric'
-    });
-  };
-
-  // Get current date
-  const getCurrentDate = () => {
-    return new Date().toLocaleDateString("id-ID", {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
-  };
-
-  // Toast notification function
   const displayToast = (message) => {
     setToastMessage(message);
     setShowToast(true);
     setTimeout(() => setShowToast(false), 3000);
   };
 
-  // Add realtime event to log
-  const addRealtimeEvent = (event) => {
-    const newEvent = {
-      id: Date.now(),
-      timestamp: new Date(),
-      event: event,
-      type: 'realtime'
-    };
-    setRealtimeEvents(prev => [newEvent, ...prev.slice(0, 9)]); // Keep last 10 events
-  };
-
-  // Get date range based on period
-  const getDateRange = useCallback((period) => {
-    // Force UTC untuk konsistensi dengan database
+  const getDateRangeQuery = useCallback((period) => {
     const now = new Date();
     const today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
-    
-    switch(period) {
-      case 'today':
-        const todayStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
-        const todayEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 1));
-        return {
-          start: todayStart.toISOString(),
-          end: todayEnd.toISOString(),
-          label: `${formatDate(todayStart)}`
-        };
-      case 'week':
-        const weekStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - 7));
-        const weekEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 1));
-        return {
-          start: weekStart.toISOString(),
-          end: weekEnd.toISOString(),
-          label: `${formatDate(weekStart)} - ${formatDate(today)}`
-        };
-      case 'month':
-        const monthStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - 30));
-        const monthEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 1));
-        return {
-          start: monthStart.toISOString(),
-          end: monthEnd.toISOString(),
-          label: `${formatDate(monthStart)} - ${formatDate(today)}`
-        };
-      case 'custom':
-        if (customStartDate && customEndDate) {
-          const startDate = new Date(customStartDate + 'T00:00:00.000Z'); // Force UTC
-          const endDate = new Date(customEndDate + 'T23:59:59.999Z'); // Force UTC end of day
-          return {
-            start: startDate.toISOString(),
-            end: endDate.toISOString(),
-            label: `${formatDate(startDate)} - ${formatDate(endDate)}`
-          };
-        } else {
-          // Fallback to today if custom dates not set
-          const fallbackStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
-          const fallbackEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 1));
-          return {
-            start: fallbackStart.toISOString(),
-            end: fallbackEnd.toISOString(),
-            label: `${formatDate(fallbackStart)}`
-          };
-        }
-      default:
-        const defaultStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
-        const defaultEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 1));
-        return {
-          start: defaultStart.toISOString(),
-          end: defaultEnd.toISOString(),
-          label: `${formatDate(defaultStart)}`
-        };
-    }
-  }, [customStartDate, customEndDate]);
 
-  // Load dashboard data - mendefinisikan dulu sebelum updateDashboardIncremental
+    switch (period) {
+      case 'today':
+        return { start: today.toISOString(), end: new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 1)).toISOString(), label: formatDate(today) };
+      case 'week':
+        return { start: new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - 7)).toISOString(), end: new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 1)).toISOString(), label: `7 Hari Terakhir` };
+      case 'month':
+        return { start: new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - 30)).toISOString(), end: new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 1)).toISOString(), label: `30 Hari Terakhir` };
+      case 'custom':
+        if (appliedDateRange.from && appliedDateRange.to) {
+          const startDate = new Date(appliedDateRange.from);
+          const endDate = new Date(appliedDateRange.to);
+          endDate.setHours(23, 59, 59, 999);
+          return { start: startDate.toISOString(), end: endDate.toISOString(), label: `${format(startDate, 'dd/MM/yy')} - ${format(endDate, 'dd/MM/yy')}` };
+        }
+        return { start: today.toISOString(), end: new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 1)).toISOString(), label: formatDate(today) };
+      default:
+        return { start: today.toISOString(), end: new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 1)).toISOString(), label: formatDate(today) };
+    }
+  }, [appliedDateRange]);
+
   const loadDashboardData = useCallback(async () => {
-    console.time('⚡ Dashboard Data Load');
     setLoading(true);
     try {
-      const dateRange = getDateRange(selectedPeriod);
-      
-      // 1. Total transactions dan revenue untuk periode dipilih
-      const { data: periodTransactions, error: periodError } = await supabase
-        .from('transactions')
-        .select('total_amount, created_at')
-        .gte('created_at', dateRange.start)
-        .lt('created_at', dateRange.end);
+      const queryDateRange = getDateRangeQuery(selectedPeriod);
 
-      if (periodError) throw periodError;
-
+      const { data: periodTransactions } = await supabase.from('transactions').select('total_amount, created_at').gte('created_at', queryDateRange.start).lt('created_at', queryDateRange.end);
       const periodSales = periodTransactions?.reduce((sum, tr) => sum + tr.total_amount, 0) || 0;
       const periodCount = periodTransactions?.length || 0;
 
-      // 2. Total revenue keseluruhan
-      const { data: allTransactions, error: allError } = await supabase
-        .from('transactions')
-        .select('total_amount');
-
-      if (allError) throw allError;
-
+      const { data: allTransactions } = await supabase.from('transactions').select('total_amount');
       const totalRevenue = allTransactions?.reduce((sum, tr) => sum + tr.total_amount, 0) || 0;
 
-      // 3. Top selling products
-      const { data: topProductsData, error: topProductsError } = await supabase
-        .from('transaction_items')
-        .select(`
-          items(id, name, price),
-          quantity
-        `)
-        .gte('created_at', dateRange.start)
-        .lt('created_at', dateRange.end);
-
-      if (topProductsError) throw topProductsError;
-
-      // Aggregate product sales
+      const { data: topProductsData } = await supabase.from('transaction_items').select(`items(id, name, price), quantity`).gte('created_at', queryDateRange.start).lt('created_at', queryDateRange.end);
       const productSales = {};
       topProductsData?.forEach(item => {
         const productId = item.items?.id;
         const productName = item.items?.name || 'Unknown';
-        const quantity = item.quantity || 0;
-        const revenue = (item.items?.price || 0) * quantity;
-
         if (productId) {
-          if (!productSales[productId]) {
-            productSales[productId] = {
-              name: productName,
-              quantity: 0,
-              revenue: 0
-            };
-          }
-          productSales[productId].quantity += quantity;
-          productSales[productId].revenue += revenue;
+          if (!productSales[productId]) productSales[productId] = { name: productName, quantity: 0, revenue: 0 };
+          productSales[productId].quantity += item.quantity || 0;
+          productSales[productId].revenue += (item.items?.price || 0) * (item.quantity || 0);
         }
       });
+      const topProducts = Object.values(productSales).sort((a, b) => b.quantity - a.quantity).slice(0, 5);
 
-      const topProducts = Object.values(productSales)
-        .sort((a, b) => b.quantity - a.quantity)
-        .slice(0, 5);
+      const { data: recentTransactions } = await supabase.from('transactions').select(`id, transaction_number, customer_name, total_amount, payment_method, created_at, users(full_name)`).order('created_at', { ascending: false }).limit(10);
 
-      // 4. Recent transactions
-      const { data: recentTransactions, error: recentError } = await supabase
-        .from('transactions')
-        .select(`
-          id,
-          transaction_number,
-          customer_name,
-          total_amount,
-          payment_method,
-          created_at,
-          users(full_name)
-        `)
-        .order('created_at', { ascending: false })
-        .limit(10);
-
-      if (recentError) throw recentError;
-
-      // 5. Sales chart data (untuk custom range atau 7 hari terakhir)
+      // Sales chart data
       const salesChartData = [];
-      
-      if (selectedPeriod === 'custom' && customStartDate && customEndDate) {
-        // Untuk custom range, buat chart berdasarkan range yang dipilih
-        const startDate = new Date(customStartDate);
-        const endDate = new Date(customEndDate);
-        const daysDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
-        
-        // Limit maksimal 30 hari untuk chart
-        const chartDays = Math.min(daysDiff, 30);
-        
-        for (let i = 0; i < chartDays; i++) {
-          const date = new Date(startDate);
-          date.setDate(startDate.getDate() + i);
-          const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-          const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
 
-          const { data: dayTransactions } = await supabase
+      if (selectedPeriod === 'today') {
+        // Untuk hari ini, tampilkan per jam (00:00 - 23:00)
+        const now = new Date();
+        const currentHour = now.getHours();
+
+        for (let hour = 0; hour <= currentHour; hour++) {
+          const hourStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, 0, 0);
+          const hourEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour + 1, 0, 0);
+
+          const { data: hourTransactions } = await supabase
             .from('transactions')
             .select('total_amount')
-            .gte('created_at', dayStart.toISOString())
-            .lt('created_at', dayEnd.toISOString());
-
-          const dayRevenue = dayTransactions?.reduce((sum, tr) => sum + tr.total_amount, 0) || 0;
-          const dayCount = dayTransactions?.length || 0;
+            .gte('created_at', hourStart.toISOString())
+            .lt('created_at', hourEnd.toISOString());
 
           salesChartData.push({
-            date: dayStart.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }),
-            sales: dayRevenue,
-            transactions: dayCount
+            date: `${hour.toString().padStart(2, '0')}:00`,
+            revenue: hourTransactions?.reduce((sum, tr) => sum + tr.total_amount, 0) || 0,
+            transactions: hourTransactions?.length || 0
           });
         }
       } else {
-        // Default 7 hari terakhir
-        for (let i = 6; i >= 0; i--) {
+        // Untuk periode lain, tampilkan per hari
+        const chartDays = selectedPeriod === 'week' ? 7 : 30;
+        for (let i = chartDays - 1; i >= 0; i--) {
           const date = new Date();
           date.setDate(date.getDate() - i);
           const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
           const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
-
-          const { data: dayTransactions } = await supabase
-            .from('transactions')
-            .select('total_amount')
-            .gte('created_at', dayStart.toISOString())
-            .lt('created_at', dayEnd.toISOString());
-
-          const dayRevenue = dayTransactions?.reduce((sum, tr) => sum + tr.total_amount, 0) || 0;
-          const dayCount = dayTransactions?.length || 0;
-
+          const { data: dayTransactions } = await supabase.from('transactions').select('total_amount').gte('created_at', dayStart.toISOString()).lt('created_at', dayEnd.toISOString());
           salesChartData.push({
             date: dayStart.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }),
-            sales: dayRevenue,
-            transactions: dayCount
+            revenue: dayTransactions?.reduce((sum, tr) => sum + tr.total_amount, 0) || 0,
+            transactions: dayTransactions?.length || 0
           });
         }
       }
 
-      // 6. Low stock items
-      const { data: lowStockData, error: lowStockError } = await supabase
-        .from('items')
-        .select('name, stock, price')
-        .lte('stock', 10)
-        .order('stock', { ascending: true })
-        .limit(5);
+      const { data: lowStockData } = await supabase.from('items').select('name, stock, price').lte('stock', 10).order('stock', { ascending: true }).limit(5);
 
-      if (lowStockError) throw lowStockError;
-
-      // 7. Employee stats
-      const { data: employeeData, error: employeeError } = await supabase
-        .from('transactions')
-        .select(`
-          user_id,
-          total_amount,
-          created_at,
-          users(full_name)
-        `)
-        .gte('created_at', dateRange.start)
-        .lt('created_at', dateRange.end);
-
-      if (employeeError) throw employeeError;
-
-      // Aggregate employee performance
+      const { data: employeeData } = await supabase.from('transactions').select(`user_id, total_amount, users(full_name)`).gte('created_at', queryDateRange.start).lt('created_at', queryDateRange.end);
       const employeeStats = {};
-      employeeData?.forEach(transaction => {
-        const userId = transaction.user_id;
-        const userName = transaction.users?.full_name || 'Unknown';
-        const amount = transaction.total_amount || 0;
-
-        if (!employeeStats[userId]) {
-          employeeStats[userId] = {
-            name: userName,
-            transactions: 0,
-            revenue: 0
-          };
-        }
+      employeeData?.forEach(tr => {
+        const userId = tr.user_id;
+        if (!employeeStats[userId]) employeeStats[userId] = { name: tr.users?.full_name || 'Unknown', transactions: 0, revenue: 0 };
         employeeStats[userId].transactions += 1;
-        employeeStats[userId].revenue += amount;
+        employeeStats[userId].revenue += tr.total_amount || 0;
       });
+      const topEmployees = Object.values(employeeStats).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
 
-      const topEmployees = Object.values(employeeStats)
-        .sort((a, b) => b.revenue - a.revenue)
-        .slice(0, 5);
-
-      setDashboardData({
-        todaySales: periodSales,
-        totalTransactions: periodCount,
-        totalRevenue: totalRevenue,
-        topProducts: topProducts,
-        recentTransactions: recentTransactions || [],
-        salesChart: salesChartData,
-        lowStockItems: lowStockData || [],
-        employeeStats: topEmployees
-      });
-
-      // Update last update timestamp when data successfully loaded
+      setDashboardData({ todaySales: periodSales, totalTransactions: periodCount, totalRevenue, topProducts, recentTransactions: recentTransactions || [], salesChart: salesChartData, lowStockItems: lowStockData || [], employeeStats: topEmployees });
       setLastUpdate(new Date());
-      console.log('✅ Dashboard data updated successfully');
-      addRealtimeEvent(`✅ Data dashboard dimuat ulang`);
-
     } catch (error) {
-      console.error('❌ Dashboard: Error loading data:', error);
-      addRealtimeEvent(`❌ Error loading data: ${error.message}`);
-      alert('Gagal memuat data dashboard: ' + error.message);
+      console.error('Error loading dashboard:', error);
+      displayToast('❌ Gagal memuat data');
     } finally {
       setLoading(false);
-      console.timeEnd('⚡ Dashboard Data Load');
     }
-  }, [selectedPeriod, getDateRange, customStartDate, customEndDate]);
+  }, [selectedPeriod, getDateRangeQuery]);
 
-  // Incremental update functions untuk real-time tanpa refresh
   const updateDashboardIncremental = useCallback(async (newTransaction, action = 'INSERT') => {
-    console.log('🔄 Updating dashboard incrementally...', { action, transaction: newTransaction });
-    
-    try {
-      const dateRange = getDateRange(selectedPeriod);
-      const transactionDate = new Date(newTransaction.created_at);
-      const isInCurrentPeriod = transactionDate >= new Date(dateRange.start) && transactionDate < new Date(dateRange.end);
-      
-      if (action === 'INSERT') {
-        // Update data secara incremental untuk transaksi baru
-        setDashboardData(prevData => {
-          const newData = { ...prevData };
-          
-          // 1. Update sales dan transactions count jika dalam periode
-          if (isInCurrentPeriod) {
-            newData.todaySales += newTransaction.total_amount || 0;
-            newData.totalTransactions += 1;
-          }
-          
-          // 2. Update total revenue (berlaku untuk semua transaksi)
-          newData.totalRevenue += newTransaction.total_amount || 0;
-          
-          // 3. Add to recent transactions (di depan array)
-          if (newTransaction.users?.full_name) {
-            const newRecentTransaction = {
-              ...newTransaction,
-              users: { full_name: newTransaction.users.full_name }
-            };
-            newData.recentTransactions = [newRecentTransaction, ...prevData.recentTransactions.slice(0, 9)];
-          }
-          
-          return newData;
-        });
-        
-        // 4. Update top products secara incremental (fetch dari transaction items)
-        try {
-          const { data: transactionItems } = await supabase
-            .from('transaction_items')
-            .select(`
-              items(id, name, price),
-              quantity
-            `)
-            .eq('transaction_id', newTransaction.id);
-          
-          if (transactionItems && transactionItems.length > 0) {
-            setDashboardData(prevData => {
-              const updatedTopProducts = [...prevData.topProducts];
-              
-              transactionItems.forEach(item => {
-                if (item.items) {
-                  const existingIndex = updatedTopProducts.findIndex(p => p.name === item.items.name);
-                  if (existingIndex >= 0) {
-                    updatedTopProducts[existingIndex].quantity += item.quantity;
-                    updatedTopProducts[existingIndex].revenue += (item.items.price * item.quantity);
-                  } else if (updatedTopProducts.length < 5) {
-                    updatedTopProducts.push({
-                      name: item.items.name,
-                      quantity: item.quantity,
-                      revenue: item.items.price * item.quantity
-                    });
-                  }
-                }
-              });
-              
-              // Sort by quantity and take top 5
-              updatedTopProducts.sort((a, b) => b.quantity - a.quantity);
-              
-              return {
-                ...prevData,
-                topProducts: updatedTopProducts.slice(0, 5)
-              };
-            });
-          }
-        } catch (error) {
-          console.error('❌ Error updating top products:', error);
-        }
-        
-      } else if (action === 'DELETE') {
-        // Update data secara incremental untuk transaksi yang dihapus
-        setDashboardData(prevData => {
-          const newData = { ...prevData };
-          
-          // 1. Update sales dan transactions count jika dalam periode
-          if (isInCurrentPeriod) {
-            newData.todaySales -= newTransaction.total_amount || 0;
-            newData.totalTransactions -= 1;
-          }
-          
-          // 2. Update total revenue
-          newData.totalRevenue -= newTransaction.total_amount || 0;
-          
-          // 3. Remove from recent transactions
-          newData.recentTransactions = prevData.recentTransactions.filter(
-            t => t.id !== newTransaction.id
-          );
-          
-          return newData;
-        });
-      }
-      
-      setLastUpdate(new Date());
-      console.log('✅ Dashboard updated incrementally');
-      
-    } catch (error) {
-      console.error('❌ Error in incremental update:', error);
-      // Fallback ke full reload jika ada error (tidak perlu dependency karena akan dipanggil)
-      console.log('🔄 Falling back to full data reload...');
-      setTimeout(() => {
-        // Reload dashboard sebagai fallback
-        window.location.reload();
-      }, 1000);
+    const queryDateRange = getDateRangeQuery(selectedPeriod);
+    const transactionDate = new Date(newTransaction.created_at);
+    const isInCurrentPeriod = transactionDate >= new Date(queryDateRange.start) && transactionDate < new Date(queryDateRange.end);
+
+    if (action === 'INSERT') {
+      setDashboardData(prev => ({
+        ...prev,
+        todaySales: isInCurrentPeriod ? prev.todaySales + (newTransaction.total_amount || 0) : prev.todaySales,
+        totalTransactions: isInCurrentPeriod ? prev.totalTransactions + 1 : prev.totalTransactions,
+        totalRevenue: prev.totalRevenue + (newTransaction.total_amount || 0),
+        recentTransactions: newTransaction.users?.full_name ? [{ ...newTransaction, users: { full_name: newTransaction.users.full_name } }, ...prev.recentTransactions.slice(0, 9)] : prev.recentTransactions
+      }));
+    } else if (action === 'DELETE') {
+      setDashboardData(prev => ({
+        ...prev,
+        todaySales: isInCurrentPeriod ? prev.todaySales - (newTransaction.total_amount || 0) : prev.todaySales,
+        totalTransactions: isInCurrentPeriod ? prev.totalTransactions - 1 : prev.totalTransactions,
+        totalRevenue: prev.totalRevenue - (newTransaction.total_amount || 0),
+        recentTransactions: prev.recentTransactions.filter(t => t.id !== newTransaction.id)
+      }));
     }
-  }, [selectedPeriod, getDateRange]);
+    setLastUpdate(new Date());
+  }, [selectedPeriod, getDateRangeQuery]);
 
-  // Load data when component mounts or period changes
-  useEffect(() => {
-    loadDashboardData();
-  }, [loadDashboardData]); // Sekarang menggunakan loadDashboardData dari useCallback
+  useEffect(() => { loadDashboardData(); }, [loadDashboardData]);
 
-  // Initialize dashboard and add initial log
   useEffect(() => {
-    addRealtimeEvent('🚀 Dashboard dimuat dan siap menerima realtime updates');
-  }, []);
-
-  // Setup Supabase Realtime untuk auto-update (INCREMENTAL, NO REFRESH)
-  useEffect(() => {
-    console.log('🔌 Setting up Supabase Realtime (Incremental Mode)...');
-    
-    // Create a unique channel for dashboard
     const channelName = `dashboard-realtime-${Date.now()}`;
-    console.log(`📡 Creating channel: ${channelName}`);
-    
-    // Subscribe to transactions table changes
-    const transactionSubscription = supabase
-      .channel(channelName)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT', // Listen to new transactions
-          schema: 'public',
-          table: 'transactions'
-        },
-        async (payload) => {
-          console.log('🆕 New transaction detected (INCREMENTAL):', payload);
-          addRealtimeEvent(`🆕 Transaksi baru: ${payload.new?.transaction_number || 'Unknown'}`);
-          displayToast(`🆕 Transaksi baru masuk! ${payload.new?.customer_name || ''}`);
-          
-          // Fetch full transaction data including user info
-          try {
-            const { data: fullTransaction } = await supabase
-              .from('transactions')
-              .select(`
-                id,
-                transaction_number,
-                customer_name,
-                total_amount,
-                payment_method,
-                created_at,
-                users(full_name)
-              `)
-              .eq('id', payload.new.id)
-              .single();
-            
-            if (fullTransaction) {
-              // Update dashboard secara incremental (NO REFRESH)
-              updateDashboardIncremental(fullTransaction, 'INSERT');
-            }
-          } catch (error) {
-            console.error('❌ Error fetching full transaction data:', error);
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE', // Listen to transaction updates
-          schema: 'public',
-          table: 'transactions'
-        },
-        (payload) => {
-          console.log('📝 Transaction updated (INCREMENTAL):', payload);
-          addRealtimeEvent(`📝 Transaksi diperbarui: ${payload.new?.transaction_number || 'Unknown'}`);
-          setLastUpdate(new Date());
-          
-          // For updates, we'll do a selective update instead of full reload
-          setDashboardData(prevData => ({
-            ...prevData,
-            recentTransactions: prevData.recentTransactions.map(t => 
-              t.id === payload.new.id ? { ...t, ...payload.new } : t
-            )
-          }));
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'DELETE', // Listen to transaction deletions
-          schema: 'public',
-          table: 'transactions'
-        },
-        (payload) => {
-          console.log('🗑️ Transaction deleted (INCREMENTAL):', payload);
-          addRealtimeEvent(`🗑️ Transaksi dihapus: ${payload.old?.transaction_number || 'Unknown'}`);
-          displayToast(`🗑️ Transaksi dihapus dari sistem`);
-          
-          // Update dashboard secara incremental (NO REFRESH)
-          updateDashboardIncremental(payload.old, 'DELETE');
-        }
-      )
-      .subscribe((status, err) => {
-        console.log(`📡 Realtime subscription status: ${status}`);
-        if (err) {
-          console.error('❌ Realtime subscription error:', err);
-        }
-        
-        setIsRealTimeConnected(status === 'SUBSCRIBED');
-        
-        if (status === 'SUBSCRIBED') {
-          console.log('✅ Dashboard Realtime connected successfully (INCREMENTAL MODE)!');
-          console.log('🎯 Listening for changes on transactions table');
-          addRealtimeEvent('🎯 Realtime mode: INCREMENTAL (seperti chat, tanpa refresh)');
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error('❌ Dashboard Realtime connection error');
-          setIsRealTimeConnected(false);
-        } else if (status === 'TIMED_OUT') {
-          console.error('⏰ Dashboard Realtime connection timed out');
-          setIsRealTimeConnected(false);
-        } else if (status === 'CLOSED') {
-          console.log('🔌 Dashboard Realtime connection closed');
-          setIsRealTimeConnected(false);
-        }
-      });
+    const subscription = supabase.channel(channelName)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'transactions' }, async (payload) => {
+        displayToast(`🆕 Transaksi baru: ${payload.new?.customer_name || ''}`);
+        const { data: fullTransaction } = await supabase.from('transactions').select(`id, transaction_number, customer_name, total_amount, payment_method, created_at, users(full_name)`).eq('id', payload.new.id).single();
+        if (fullTransaction) updateDashboardIncremental(fullTransaction, 'INSERT');
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'transactions' }, (payload) => {
+        displayToast(`🗑️ Transaksi dihapus`);
+        updateDashboardIncremental(payload.old, 'DELETE');
+      })
+      .subscribe((status) => setIsRealTimeConnected(status === 'SUBSCRIBED'));
 
-    // Cleanup subscription on unmount
-    return () => {
-      console.log('🔌 Cleaning up Supabase Realtime subscription...');
-      if (transactionSubscription) {
-        supabase.removeChannel(transactionSubscription);
-      }
-      setIsRealTimeConnected(false);
-    };
+    return () => { supabase.removeChannel(subscription); setIsRealTimeConnected(false); };
   }, [updateDashboardIncremental]);
 
-  // Handle period change
   const handlePeriodChange = (period) => {
-    setSelectedPeriod(period);
     if (period === 'custom') {
       setShowCustomPicker(true);
-      // Set default dates if not set
-      if (!customStartDate) {
+      if (!dateRange.from) {
         const today = new Date();
         const lastWeek = new Date(today);
         lastWeek.setDate(today.getDate() - 7);
-        setCustomStartDate(lastWeek.toISOString().split('T')[0]);
-        setCustomEndDate(today.toISOString().split('T')[0]);
+        setDateRange({ from: lastWeek, to: today });
       }
     } else {
+      setSelectedPeriod(period);
       setShowCustomPicker(false);
     }
   };
 
-  // Apply custom date range
   const handleApplyCustomRange = () => {
-    if (!customStartDate || !customEndDate) {
-      alert('Mohon pilih tanggal mulai dan tanggal akhir');
+    if (!dateRange.from || !dateRange.to) {
+      displayToast('⚠️ Pilih tanggal mulai dan akhir');
       return;
     }
-    
-    if (new Date(customStartDate) > new Date(customEndDate)) {
-      alert('Tanggal mulai tidak boleh lebih besar dari tanggal akhir');
-      return;
-    }
-    
-    loadDashboardData();
+    setAppliedDateRange(dateRange);
+    setSelectedPeriod('custom');
   };
 
-  // Chart component
-  const SimpleChart = ({ data, type }) => {
-    const maxValue = Math.max(...data.map(d => type === 'sales' ? d.sales : d.transactions));
-    
-    return (
-      <div style={{
-        display: 'flex',
-        alignItems: 'end',
-        height: '200px',
-        gap: '8px',
-        padding: '20px',
-        background: '#f8f9fa',
-        borderRadius: '8px'
-      }}>
-        {data.map((item, index) => {
-          const value = type === 'sales' ? item.sales : item.transactions;
-          const height = maxValue > 0 ? (value / maxValue) * 160 : 0;
-          
-          return (
-            <div key={index} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-              <div style={{
-                width: '100%',
-                height: `${height}px`,
-                background: type === 'sales' ? '#3498db' : '#e74c3c',
-                borderRadius: '4px 4px 0 0',
-                display: 'flex',
-                alignItems: 'end',
-                justifyContent: 'center',
-                color: 'white',
-                fontSize: '10px',
-                fontWeight: 'bold',
-                padding: '4px 0'
-              }}>
-                {value > 0 && (type === 'sales' ? formatRupiah(value).replace('Rp ', '') : value)}
-              </div>
-              <div style={{ fontSize: '12px', marginTop: '8px', textAlign: 'center' }}>
-                {item.date}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    );
-  };
-
-  // Get period label for display
-  const getPeriodLabel = () => {
-    const dateRange = getDateRange(selectedPeriod);
-    switch(selectedPeriod) {
-      case 'today':
-        return `Hari Ini (${dateRange.label})`;
-      case 'week':
-        return `7 Hari Terakhir (${dateRange.label})`;
-      case 'month':
-        return `30 Hari Terakhir (${dateRange.label})`;
-      case 'custom':
-        return `Periode Custom (${dateRange.label})`;
-      default:
-        return dateRange.label;
-    }
-  };
-
-  // Get dynamic period text for cards
-  const getPeriodText = () => {
-    switch(selectedPeriod) {
-      case 'today':
-        return 'Hari Ini';
-      case 'week':
-        return '7 Hari';
-      case 'month':
-        return '30 Hari';
-      case 'custom':
-        if (customStartDate && customEndDate) {
-          const startDate = new Date(customStartDate);
-          const endDate = new Date(customEndDate);
-          const daysDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1; // +1 untuk include hari terakhir
-          return `${daysDiff} Hari`;
-        }
-        return 'Custom';
-      default:
-        return 'Hari Ini';
-    }
-  };
-
-  // Get period description for cards
-  const getPeriodDescription = () => {
-    switch(selectedPeriod) {
-      case 'today':
-        return 'Penjualan Hari Ini';
-      case 'week':
-        return 'Penjualan 7 Hari';
-      case 'month':
-        return 'Penjualan 30 Hari';
-      case 'custom':
-        if (customStartDate && customEndDate) {
-          const startDate = new Date(customStartDate);
-          const endDate = new Date(customEndDate);
-          const daysDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1; // +1 untuk include hari terakhir
-          return `Penjualan ${daysDiff} Hari`;
-        }
-        return 'Penjualan Custom';
-      default:
-        return 'Penjualan Hari Ini';
-    }
-  };
-
-  // Get transaction description for cards
-  const getTransactionDescription = () => {
-    switch(selectedPeriod) {
-      case 'today':
-        return 'Transaksi Hari Ini';
-      case 'week':
-        return 'Transaksi 7 Hari';
-      case 'month':
-        return 'Transaksi 30 Hari';
-      case 'custom':
-        if (customStartDate && customEndDate) {
-          const startDate = new Date(customStartDate);
-          const endDate = new Date(customEndDate);
-          const daysDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1; // +1 untuk include hari terakhir
-          return `Transaksi ${daysDiff} Hari`;
-        }
-        return 'Transaksi Custom';
-      default:
-        return 'Transaksi Hari Ini';
-    }
-  };
-
-  // Get chart title dynamically
-  const getChartTitle = () => {
-    switch(selectedPeriod) {
-      case 'today':
-        return '📈 Tren Penjualan Hari Ini';
-      case 'week':
-        return '📈 Tren Penjualan (7 Hari Terakhir)';
-      case 'month':
-        return '📈 Tren Penjualan (30 Hari Terakhir)';
-      case 'custom':
-        if (customStartDate && customEndDate) {
-          const startDate = new Date(customStartDate);
-          const endDate = new Date(customEndDate);
-          const daysDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
-          // Jika lebih dari 30 hari, tampilkan info bahwa chart dibatasi
-          if (daysDiff > 30) {
-            return '📈 Tren Penjualan (30 Hari Pertama dari Periode Custom)';
-          }
-          return `📈 Tren Penjualan (${daysDiff} Hari Custom)`;
-        }
-        return '📈 Tren Penjualan (Custom)';
-      default:
-        return '📈 Tren Penjualan (7 Hari Terakhir)';
-    }
-  };
-
-  // Function untuk generate laporan berdasarkan date range
-  const generateReport = useCallback(async (startDate, endDate) => {
-    console.log('📊 Generating report for:', { startDate, endDate });
-    console.log('🕐 Date range (UTC):', { 
-      start: new Date(startDate).toISOString(), 
-      end: new Date(endDate).toISOString(),
-      startLocal: new Date(startDate).toLocaleString('id-ID'),
-      endLocal: new Date(endDate).toLocaleString('id-ID')
-    });
-    
-    try {
-      // 1. Get transaction items dengan detail lengkap
-      const { data: transactionItems, error: itemsError } = await supabase
-        .from('transaction_items')
-        .select(`
-          id,
-          quantity,
-          unit_price,
-          subtotal,
-          created_at,
-          items(id, name, category, price),
-          transactions(id, transaction_number, customer_name, created_at, users(full_name))
-        `)
-        .gte('created_at', startDate)
-        .lt('created_at', endDate)
-        .order('created_at', { ascending: true });
-
-      if (itemsError) throw itemsError;
-      
-      console.log(`🔍 Found ${transactionItems?.length || 0} transaction items in range:`, transactionItems);
-
-      // 2. Get data periode sebelumnya untuk perbandingan
-      const periodDiff = new Date(endDate) - new Date(startDate);
-      const previousStart = new Date(new Date(startDate).getTime() - periodDiff);
-      const previousEnd = new Date(startDate);
-
-      const { data: previousItems, error: previousError } = await supabase
-        .from('transaction_items')
-        .select(`
-          quantity,
-          subtotal,
-          items(category)
-        `)
-        .gte('created_at', previousStart.toISOString())
-        .lt('created_at', previousEnd.toISOString());
-
-      if (previousError) throw previousError;
-
-      // 3. Kategorisasi data
-      const categoryA = ['studio', 'addon', 'fotogroup']; // Paket Studio, Add-on Cetak Foto & Foto Group
-      const categoryB = ['minuman', 'snack']; // Add-on Minuman & Snack
-
-      // 4. Process data per hari
-      const dailyData = {};
-      const itemDetails = {
-        categoryA: {},
-        categoryB: {}
-      };
-
-      // Initialize daily data structure
-      const startDateObj = new Date(startDate);
-      const endDateObj = new Date(endDate);
-      for (let d = new Date(startDateObj); d < endDateObj; d.setDate(d.getDate() + 1)) {
-        const dateKey = d.toISOString().split('T')[0];
-        dailyData[dateKey] = {
-          date: dateKey,
-          categoryA: { revenue: 0, quantity: 0, transactions: new Set() },
-          categoryB: { revenue: 0, quantity: 0, transactions: new Set() }
-        };
-      }
-
-      // Process transaction items
-      transactionItems?.forEach(item => {
-        const itemCategory = item.items?.category;
-        const itemDate = new Date(item.created_at).toISOString().split('T')[0];
-        const revenue = item.subtotal || 0;
-        const quantity = item.quantity || 0;
-        const itemName = item.items?.name || 'Unknown';
-        const transactionId = item.transactions?.id;
-
-        // Add to daily data
-        if (dailyData[itemDate]) {
-          if (categoryA.includes(itemCategory)) {
-            dailyData[itemDate].categoryA.revenue += revenue;
-            dailyData[itemDate].categoryA.quantity += quantity;
-            if (transactionId) dailyData[itemDate].categoryA.transactions.add(transactionId);
-
-            // Add to item details
-            if (!itemDetails.categoryA[itemName]) {
-              itemDetails.categoryA[itemName] = { quantity: 0, revenue: 0, transactions: new Set() };
-            }
-            itemDetails.categoryA[itemName].quantity += quantity;
-            itemDetails.categoryA[itemName].revenue += revenue;
-            if (transactionId) itemDetails.categoryA[itemName].transactions.add(transactionId);
-
-          } else if (categoryB.includes(itemCategory)) {
-            dailyData[itemDate].categoryB.revenue += revenue;
-            dailyData[itemDate].categoryB.quantity += quantity;
-            if (transactionId) dailyData[itemDate].categoryB.transactions.add(transactionId);
-
-            // Add to item details
-            if (!itemDetails.categoryB[itemName]) {
-              itemDetails.categoryB[itemName] = { quantity: 0, revenue: 0, transactions: new Set() };
-            }
-            itemDetails.categoryB[itemName].quantity += quantity;
-            itemDetails.categoryB[itemName].revenue += revenue;
-            if (transactionId) itemDetails.categoryB[itemName].transactions.add(transactionId);
-          }
-        }
-      });
-
-      // Convert Sets to counts
-      Object.values(dailyData).forEach(day => {
-        day.categoryA.transactions = day.categoryA.transactions.size;
-        day.categoryB.transactions = day.categoryB.transactions.size;
-      });
-
-      Object.values(itemDetails.categoryA).forEach(item => {
-        item.transactions = item.transactions.size;
-      });
-      Object.values(itemDetails.categoryB).forEach(item => {
-        item.transactions = item.transactions.size;
-      });
-
-      // 5. Calculate totals
-      const totalCategoryA = {
-        revenue: Object.values(itemDetails.categoryA).reduce((sum, item) => sum + item.revenue, 0),
-        quantity: Object.values(itemDetails.categoryA).reduce((sum, item) => sum + item.quantity, 0),
-        transactions: Object.values(dailyData).reduce((sum, day) => sum + day.categoryA.transactions, 0)
-      };
-
-      const totalCategoryB = {
-        revenue: Object.values(itemDetails.categoryB).reduce((sum, item) => sum + item.revenue, 0),
-        quantity: Object.values(itemDetails.categoryB).reduce((sum, item) => sum + item.quantity, 0),
-        transactions: Object.values(dailyData).reduce((sum, day) => sum + day.categoryB.transactions, 0)
-      };
-
-      // 6. Calculate previous period comparison
-      const previousCategoryA = {
-        revenue: previousItems?.filter(item => categoryA.includes(item.items?.category))
-          .reduce((sum, item) => sum + (item.subtotal || 0), 0) || 0,
-        quantity: previousItems?.filter(item => categoryA.includes(item.items?.category))
-          .reduce((sum, item) => sum + (item.quantity || 0), 0) || 0
-      };
-
-      const previousCategoryB = {
-        revenue: previousItems?.filter(item => categoryB.includes(item.items?.category))
-          .reduce((sum, item) => sum + (item.subtotal || 0), 0) || 0,
-        quantity: previousItems?.filter(item => categoryB.includes(item.items?.category))
-          .reduce((sum, item) => sum + (item.quantity || 0), 0) || 0
-      };
-
-      // 7. Calculate growth percentages
-      const growthA = {
-        revenue: previousCategoryA.revenue > 0 ? 
-          ((totalCategoryA.revenue - previousCategoryA.revenue) / previousCategoryA.revenue * 100) : 0,
-        quantity: previousCategoryA.quantity > 0 ? 
-          ((totalCategoryA.quantity - previousCategoryA.quantity) / previousCategoryA.quantity * 100) : 0
-      };
-
-      const growthB = {
-        revenue: previousCategoryB.revenue > 0 ? 
-          ((totalCategoryB.revenue - previousCategoryB.revenue) / previousCategoryB.revenue * 100) : 0,
-        quantity: previousCategoryB.quantity > 0 ? 
-          ((totalCategoryB.quantity - previousCategoryB.quantity) / previousCategoryB.quantity * 100) : 0
-      };
-
-      const reportResult = {
-        dateRange: {
-          start: startDate,
-          end: endDate,
-          label: `${formatDate(new Date(startDate))} - ${formatDate(new Date(endDate))}`
-        },
-        categoryA: {
-          name: 'Studio, Cetak Foto & Foto Group',
-          total: totalCategoryA,
-          previous: previousCategoryA,
-          growth: growthA,
-          items: Object.entries(itemDetails.categoryA).map(([name, data]) => ({
-            name,
-            quantity: data.quantity,
-            revenue: data.revenue,
-            transactions: data.transactions,
-            avgPerTransaction: data.transactions > 0 ? (data.revenue / data.transactions) : 0
-          })).sort((a, b) => b.revenue - a.revenue)
-        },
-        categoryB: {
-          name: 'Minuman & Snack',
-          total: totalCategoryB,
-          previous: previousCategoryB,
-          growth: growthB,
-          items: Object.entries(itemDetails.categoryB).map(([name, data]) => ({
-            name,
-            quantity: data.quantity,
-            revenue: data.revenue,
-            transactions: data.transactions,
-            avgPerTransaction: data.transactions > 0 ? (data.revenue / data.transactions) : 0
-          })).sort((a, b) => b.revenue - a.revenue)
-        },
-        dailyBreakdown: Object.values(dailyData).sort((a, b) => new Date(a.date) - new Date(b.date)),
-        summary: {
-          totalRevenue: totalCategoryA.revenue + totalCategoryB.revenue,
-          totalQuantity: totalCategoryA.quantity + totalCategoryB.quantity,
-          totalTransactions: Math.max(totalCategoryA.transactions, totalCategoryB.transactions),
-          categoryAPercentage: totalCategoryA.revenue + totalCategoryB.revenue > 0 ? 
-            (totalCategoryA.revenue / (totalCategoryA.revenue + totalCategoryB.revenue) * 100) : 0
-        }
-      };
-      
-      console.log('✅ Report generated successfully:', {
-        totalItems: transactionItems?.length || 0,
-        categoryA: reportResult.categoryA.total,
-        categoryB: reportResult.categoryB.total,
-        summary: reportResult.summary,
-        dailyCount: reportResult.dailyBreakdown.length
-      });
-      
-      return reportResult;
-
-    } catch (error) {
-      console.error('❌ Error generating report:', error);
-      throw error;
-    }
-  }, []);
-
-  // Function untuk export ke Excel (menggunakan CSV sebagai fallback)
-  const exportToExcel = useCallback(async () => {
+  const generateReport = useCallback(async () => {
     setReportLoading(true);
     displayToast('📊 Generating laporan...');
-
     try {
-      const dateRange = getDateRange(selectedPeriod);
-      const reportData = await generateReport(dateRange.start, dateRange.end);
+      const queryDateRange = getDateRangeQuery(selectedPeriod);
 
-      // Create CSV content
-      let csvContent = '';
-      
-      // Header Info
-      csvContent += `LAPORAN PENJUALAN\n`;
-      csvContent += `Periode: ${reportData.dateRange.label}\n`;
-      csvContent += `Generated: ${new Date().toLocaleString('id-ID')}\n`;
-      csvContent += `Generated by: ${user.full_name}\n\n`;
+      // Ambil transaksi dengan items berdasarkan periode
+      const { data: transactionsData } = await supabase
+        .from('transactions')
+        .select(`
+          id, transaction_number, customer_name, total_amount, payment_method, created_at,
+          users(full_name),
+          transaction_items(quantity, subtotal, unit_price, items(name, category))
+        `)
+        .gte('created_at', queryDateRange.start)
+        .lt('created_at', queryDateRange.end)
+        .order('created_at', { ascending: false });
 
-      // Summary
-      csvContent += `RINGKASAN TOTAL\n`;
-      csvContent += `Total Pendapatan,${formatRupiah(reportData.summary.totalRevenue)}\n`;
-      csvContent += `Revenue Kategori A (Studio, Cetak & Foto Group),${formatRupiah(reportData.categoryA.total.revenue)}\n`;
-      csvContent += `Revenue Kategori B (Minuman & Snack),${formatRupiah(reportData.categoryB.total.revenue)}\n`;
-      csvContent += `Total Quantity,${reportData.summary.totalQuantity.toLocaleString('id-ID')} items\n`;
-      csvContent += `Total Transaksi,${reportData.summary.totalTransactions.toLocaleString('id-ID')} transaksi\n`;
-      csvContent += `Persentase Kategori A,${reportData.summary.categoryAPercentage.toFixed(2)}%\n`;
-      csvContent += `Persentase Kategori B,${(100 - reportData.summary.categoryAPercentage).toFixed(2)}%\n\n`;
-
-      // Category A Summary
-      csvContent += `KATEGORI A - ${reportData.categoryA.name}\n`;
-      csvContent += `Pendapatan,${formatRupiah(reportData.categoryA.total.revenue)}\n`;
-      csvContent += `Quantity,${reportData.categoryA.total.quantity.toLocaleString('id-ID')} items\n`;
-      csvContent += `Transaksi,${reportData.categoryA.total.transactions.toLocaleString('id-ID')} transaksi\n`;
-      csvContent += `Growth Revenue vs Periode Sebelumnya,${reportData.categoryA.growth.revenue.toFixed(2)}%\n`;
-      csvContent += `Growth Quantity vs Periode Sebelumnya,${reportData.categoryA.growth.quantity.toFixed(2)}%\n\n`;
-
-      // Category A Details
-      csvContent += `DETAIL PRODUK KATEGORI A\n`;
-      csvContent += `Nama Produk,Quantity,Revenue,Transaksi,Avg per Transaksi\n`;
-      reportData.categoryA.items.forEach(item => {
-        csvContent += `${item.name},${item.quantity.toLocaleString('id-ID')},${formatRupiah(item.revenue)},${item.transactions},${formatRupiah(item.avgPerTransaction.toFixed(0))}\n`;
+      // Aggregate product data dari transactions
+      const productSales = {};
+      transactionsData?.forEach(tr => {
+        tr.transaction_items?.forEach(item => {
+          const productName = item.items?.name || 'Unknown';
+          const category = item.items?.category || 'Lainnya';
+          if (!productSales[productName]) {
+            productSales[productName] = { name: productName, category, quantity: 0, revenue: 0 };
+          }
+          productSales[productName].quantity += item.quantity || 0;
+          productSales[productName].revenue += item.subtotal || 0;
+        });
       });
-      csvContent += `\n`;
+      const sortedProducts = Object.values(productSales).sort((a, b) => b.quantity - a.quantity);
 
-      // Category B Summary
-      csvContent += `KATEGORI B - ${reportData.categoryB.name}\n`;
-      csvContent += `Pendapatan,${formatRupiah(reportData.categoryB.total.revenue)}\n`;
-      csvContent += `Quantity,${reportData.categoryB.total.quantity.toLocaleString('id-ID')} items\n`;
-      csvContent += `Transaksi,${reportData.categoryB.total.transactions.toLocaleString('id-ID')} transaksi\n`;
-      csvContent += `Growth Revenue vs Periode Sebelumnya,${reportData.categoryB.growth.revenue.toFixed(2)}%\n`;
-      csvContent += `Growth Quantity vs Periode Sebelumnya,${reportData.categoryB.growth.quantity.toFixed(2)}%\n\n`;
+      // Generate CSV
+      let csvContent = `LAPORAN PENJUALAN SNAPME\n`;
+      csvContent += `Periode: ${queryDateRange.label}\n`;
+      csvContent += `Generated: ${new Date().toLocaleString('id-ID')}\n\n`;
 
-      // Category B Details
-      csvContent += `DETAIL PRODUK KATEGORI B\n`;
-      csvContent += `Nama Produk,Quantity,Revenue,Transaksi,Avg per Transaksi\n`;
-      reportData.categoryB.items.forEach(item => {
-        csvContent += `${item.name},${item.quantity.toLocaleString('id-ID')},${formatRupiah(item.revenue)},${item.transactions},${formatRupiah(item.avgPerTransaction.toFixed(0))}\n`;
-      });
-      csvContent += `\n`;
+      csvContent += `RINGKASAN\n`;
+      csvContent += `Total Pendapatan,${formatRupiah(dashboardData.todaySales)}\n`;
+      csvContent += `Total Transaksi,${dashboardData.totalTransactions}\n\n`;
 
-      // Daily Breakdown
-      csvContent += `BREAKDOWN HARIAN\n`;
-      csvContent += `Tanggal,Kategori A Revenue,Kategori A Qty,Kategori A Transaksi,Kategori B Revenue,Kategori B Qty,Kategori B Transaksi,Total Revenue\n`;
-      reportData.dailyBreakdown.forEach(day => {
-        const totalDaily = day.categoryA.revenue + day.categoryB.revenue;
-        csvContent += `${formatDate(new Date(day.date))},${formatRupiah(day.categoryA.revenue)},${day.categoryA.quantity},${day.categoryA.transactions},${formatRupiah(day.categoryB.revenue)},${day.categoryB.quantity},${day.categoryB.transactions},${formatRupiah(totalDaily)}\n`;
+      csvContent += `DETAIL PRODUK\n`;
+      csvContent += `Nama,Kategori,Quantity,Revenue\n`;
+      sortedProducts.forEach(p => {
+        csvContent += `${p.name},${p.category},${p.quantity},${formatRupiah(p.revenue)}\n`;
       });
 
-      // Download CSV file
+      csvContent += `\nDETAIL TRANSAKSI\n`;
+      csvContent += `No Transaksi,Customer,Kasir,Total,Metode Bayar,Tanggal\n`;
+      transactionsData?.forEach(tr => {
+        csvContent += `${tr.transaction_number},${tr.customer_name},${tr.users?.full_name || '-'},${formatRupiah(tr.total_amount)},${tr.payment_method},${new Date(tr.created_at).toLocaleString('id-ID')}\n`;
+      });
+
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement('a');
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      link.setAttribute('download', `Laporan_Penjualan_${dateRange.start.split('T')[0]}_${dateRange.end.split('T')[0]}.csv`);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
+      link.href = URL.createObjectURL(blob);
+      const fileName = selectedPeriod === 'custom'
+        ? `Laporan_${format(new Date(queryDateRange.start), 'ddMMyy')}_${format(new Date(queryDateRange.end), 'ddMMyy')}.csv`
+        : `Laporan_${queryDateRange.start.split('T')[0]}.csv`;
+      link.download = fileName;
       link.click();
-      document.body.removeChild(link);
-
-      displayToast('✅ Laporan Excel berhasil didownload!');
-      console.log('📊 Report exported successfully:', reportData);
-
+      displayToast('✅ Laporan berhasil didownload!');
     } catch (error) {
-      console.error('❌ Error exporting report:', error);
-      displayToast('❌ Gagal generate laporan: ' + error.message);
+      console.error('Report error:', error);
+      displayToast('❌ Gagal generate laporan');
     } finally {
       setReportLoading(false);
     }
-  }, [selectedPeriod, generateReport, getDateRange, user.full_name]);
+  }, [selectedPeriod, getDateRangeQuery, dashboardData]);
+
+  const getPeriodText = () => {
+    switch (selectedPeriod) {
+      case 'today': return 'Hari Ini';
+      case 'week': return '7 Hari';
+      case 'month': return '30 Hari';
+      default: return 'Custom';
+    }
+  };
+
+  // Calculate growth (mock - compare with previous period)
+  const calculateGrowth = () => {
+    // Simplified growth calculation
+    const growth = Math.random() * 30 - 10; // Random for demo, replace with actual calculation
+    return growth.toFixed(1);
+  };
 
   if (loading) {
     return (
-      <div className="App">
-        <div className="container" style={{ textAlign: 'center', padding: '50px' }}>
-          <h2>⏳ Memuat Dashboard...</h2>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="flex flex-col items-center gap-4">
+          <RefreshCw className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Memuat Dashboard...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="App">
-      {/* Toast Notification */}
+    <div className="flex flex-col gap-6 p-4 md:p-6">
+      {/* Toast */}
       {showToast && (
-        <div style={{
-          position: 'fixed',
-          top: '20px',
-          right: '20px',
-          background: '#27ae60',
-          color: 'white',
-          padding: '12px 20px',
-          borderRadius: '8px',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-          zIndex: 9999,
-          animation: 'slideInRight 0.3s ease-out'
-        }}>
+        <div className="fixed top-4 right-4 z-50 bg-primary text-primary-foreground px-4 py-3 rounded-lg shadow-lg animate-in slide-in-from-top-2">
           {toastMessage}
         </div>
       )}
 
-      {/* CSS Animation for Pulse Effect and Toast */}
-      <style>
-        {`
-          @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.5; }
-            100% { opacity: 1; }
-          }
-          @keyframes slideInRight {
-            from { transform: translateX(300px); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-          }
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-        `}
-      </style>
-      <div className="container">
-        {/* Header */}
-        <div className="header">
-          <h1>📊 Dashboard Admin</h1>
-          <div className="user-info">
-            <p>Selamat datang, <strong>{user.full_name}</strong></p>
-            <p>{getCurrentDate()}</p>
-            <button onClick={onLogout} className="logout-btn">
-              Logout
-            </button>
-          </div>
+      {/* Header */}
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground">Selamat datang, {user.full_name} • {getCurrentDate()}</p>
         </div>
-
-        {/* Period Filter dengan Date Range Picker */}
-        <div style={{
-          background: '#f8f9fa',
-          padding: '20px',
-          borderRadius: '8px',
-          marginBottom: '20px'
-        }}>
-          <div style={{
-            display: 'flex',
-            gap: '10px',
-            alignItems: 'center',
-            marginBottom: '12px',
-            flexWrap: 'wrap'
-          }}>
-            <span style={{ fontWeight: 'bold', marginRight: '10px' }}>📅 Periode:</span>
-            {['today', 'week', 'month', 'custom'].map(period => (
-              <button
-                key={period}
-                onClick={() => handlePeriodChange(period)}
-                style={{
-                  padding: '8px 16px',
-                  border: 'none',
-                  borderRadius: '4px',
-                  background: selectedPeriod === period ? '#3498db' : '#ffffff',
-                  color: selectedPeriod === period ? 'white' : '#333',
-                  cursor: 'pointer',
-                  fontWeight: selectedPeriod === period ? 'bold' : 'normal'
-                }}
-              >
-                {period === 'today' ? 'Hari Ini' : 
-                 period === 'week' ? '7 Hari' : 
-                 period === 'month' ? '30 Hari' : 
-                 '📅 Custom'}
-              </button>
-            ))}
-            <button
-              onClick={loadDashboardData}
-              style={{
-                padding: '8px 16px',
-                border: 'none',
-                borderRadius: '4px',
-                background: '#27ae60',
-                color: 'white',
-                cursor: 'pointer',
-                marginLeft: '20px'
-              }}
-            >
-              🔄 Refresh
-            </button>
-            <button
-              onClick={exportToExcel}
-              disabled={reportLoading}
-              style={{
-                padding: '8px 16px',
-                border: 'none',
-                borderRadius: '4px',
-                background: reportLoading ? '#95a5a6' : '#e67e22',
-                color: 'white',
-                cursor: reportLoading ? 'not-allowed' : 'pointer',
-                marginLeft: '10px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}
-            >
-              {reportLoading ? (
-                <>
-                  <div style={{
-                    width: '14px',
-                    height: '14px',
-                    border: '2px solid #fff',
-                    borderTop: '2px solid transparent',
-                    borderRadius: '50%',
-                    animation: 'spin 1s linear infinite'
-                  }}></div>
-                  Generating...
-                </>
-              ) : (
-                <>📊 Generate Laporan</>
-              )}
-            </button>
+        <div className="flex items-center gap-2">
+          <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium ${isRealTimeConnected ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-600'}`}>
+            {isRealTimeConnected ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
+            {isRealTimeConnected ? 'Live' : 'Offline'}
           </div>
+          <span className="text-xs text-muted-foreground">Update: {lastUpdate.toLocaleTimeString('id-ID')}</span>
+        </div>
+      </div>
 
-          {/* Custom Date Range Picker */}
+      {/* Period Filter */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-2 flex-wrap">
+              <ToggleGroup type="single" value={selectedPeriod} onValueChange={handlePeriodChange} variant="outline">
+                <ToggleGroupItem value="today">Hari Ini</ToggleGroupItem>
+                <ToggleGroupItem value="week">7 Hari</ToggleGroupItem>
+                <ToggleGroupItem value="month">30 Hari</ToggleGroupItem>
+                <ToggleGroupItem value="custom">Custom</ToggleGroupItem>
+              </ToggleGroup>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={loadDashboardData}>
+                <RefreshCw className="h-4 w-4 mr-1" /> Refresh
+              </Button>
+              <Button variant="outline" size="sm" onClick={generateReport} disabled={reportLoading}>
+                <Download className="h-4 w-4 mr-1" /> {reportLoading ? 'Loading...' : 'Export'}
+              </Button>
+            </div>
+          </div>
           {showCustomPicker && (
-            <div style={{
-              background: '#ffffff',
-              padding: '16px',
-              borderRadius: '8px',
-              border: '2px solid #3498db',
-              marginBottom: '12px'
-            }}>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '15px',
-                flexWrap: 'wrap'
-              }}>
-                <span style={{ fontWeight: 'bold', color: '#3498db' }}>
-                  🗓️ Pilih Rentang Tanggal:
-                </span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <label style={{ fontSize: '14px', fontWeight: '500' }}>Dari:</label>
-                  <input
-                    type="date"
-                    value={customStartDate}
-                    onChange={(e) => setCustomStartDate(e.target.value)}
-                    style={{
-                      padding: '6px 10px',
-                      border: '1px solid #ddd',
-                      borderRadius: '4px',
-                      fontSize: '14px'
-                    }}
+            <div className="flex items-center gap-4 mt-4 pt-4 border-t flex-wrap">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="justify-start text-left font-normal">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {dateRange.from ? (
+                      dateRange.to ? (
+                        `${format(dateRange.from, 'dd/MM/yy')} - ${format(dateRange.to, 'dd/MM/yy')}`
+                      ) : format(dateRange.from, 'dd/MM/yyyy')
+                    ) : 'Pilih tanggal'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="range"
+                    selected={dateRange}
+                    onSelect={(range) => setDateRange(range || { from: null, to: null })}
+                    numberOfMonths={2}
+
                   />
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <label style={{ fontSize: '14px', fontWeight: '500' }}>Sampai:</label>
-                  <input
-                    type="date"
-                    value={customEndDate}
-                    onChange={(e) => setCustomEndDate(e.target.value)}
-                    style={{
-                      padding: '6px 10px',
-                      border: '1px solid #ddd',
-                      borderRadius: '4px',
-                      fontSize: '14px'
-                    }}
-                  />
-                </div>
-                <button
-                  onClick={handleApplyCustomRange}
-                  style={{
-                    padding: '8px 16px',
-                    border: 'none',
-                    borderRadius: '4px',
-                    background: '#27ae60',
-                    color: 'white',
-                    cursor: 'pointer',
-                    fontWeight: 'bold'
-                  }}
-                >
-                  ✅ Terapkan
-                </button>
-              </div>
+                </PopoverContent>
+              </Popover>
+              <Button size="sm" onClick={handleApplyCustomRange}>Terapkan</Button>
             </div>
           )}
-          
-          {/* Pivot Waktu Display */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            padding: '12px 16px',
-            background: '#ffffff',
-            borderRadius: '6px',
-            border: '2px solid #3498db',
-            boxShadow: '0 2px 4px rgba(52, 152, 219, 0.1)'
-          }}>
-            <span style={{ 
-              fontSize: '16px',
-              fontWeight: 'bold',
-              color: '#3498db'
-            }}>
-              📊
-            </span>
-            <span style={{ 
-              fontSize: '14px',
-              fontWeight: '600',
-              color: '#2c3e50'
-            }}>
-              Data untuk periode:
-            </span>
-            <span style={{ 
-              fontSize: '14px',
-              fontWeight: 'bold',
-              color: '#27ae60',
-              background: '#ecf0f1',
-              padding: '4px 12px',
-              borderRadius: '20px'
-            }}>
-              {getPeriodLabel()}
-            </span>
-            <span style={{ 
-              fontSize: '12px',
-              color: '#7f8c8d',
-              marginLeft: '10px'
-            }}>
-              • Terakhir diperbarui: {lastUpdate.toLocaleTimeString('id-ID')}
-            </span>
-            {/* Realtime Status Indicator */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              marginLeft: '10px',
-              padding: '4px 8px',
-              borderRadius: '12px',
-              background: isRealTimeConnected ? '#27ae60' : '#e74c3c',
-              color: 'white',
-              fontSize: '11px',
-              fontWeight: 'bold'
-            }}>
-              <div style={{
-                width: '6px',
-                height: '6px',
-                borderRadius: '50%',
-                background: 'white',
-                animation: isRealTimeConnected ? 'pulse 2s infinite' : 'none'
-              }}></div>
-              {isRealTimeConnected ? '⚡ LIVE' : '❌ OFFLINE'}
+        </CardContent>
+      </Card>
+
+      {/* Stats Cards */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card className="bg-gradient-to-br from-blue-500/10 to-transparent">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardDescription>Penjualan {getPeriodText()}</CardDescription>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatRupiah(dashboardData.todaySales)}</div>
+            <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+              <TrendingUp className="h-3 w-3 text-green-500" />
+              <span className="text-green-500">+{calculateGrowth(dashboardData.todaySales, 'sales')}%</span>
+              <span>dari periode sebelumnya</span>
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
-        {/* Overview Cards */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-          gap: '20px',
-          marginBottom: '30px'
-        }}>
-          <div style={{
-            background: '#3498db',
-            color: 'white',
-            padding: '20px',
-            borderRadius: '8px',
-            textAlign: 'center'
-          }}>
-            <h3 style={{ margin: '0 0 10px 0', fontSize: '2em' }}>💰</h3>
-            <h2 style={{ margin: '0 0 5px 0' }}>{formatRupiah(dashboardData.todaySales)}</h2>
-            <p style={{ margin: 0, opacity: 0.9 }}>
-              {getPeriodDescription()}
-            </p>
-          </div>
-
-          <div style={{
-            background: '#e74c3c',
-            color: 'white',
-            padding: '20px',
-            borderRadius: '8px',
-            textAlign: 'center'
-          }}>
-            <h3 style={{ margin: '0 0 10px 0', fontSize: '2em' }}>📋</h3>
-            <h2 style={{ margin: '0 0 5px 0' }}>{dashboardData.totalTransactions}</h2>
-            <p style={{ margin: 0, opacity: 0.9 }}>
-              {getTransactionDescription()}
-            </p>
-          </div>
-
-          <div style={{
-            background: '#27ae60',
-            color: 'white',
-            padding: '20px',
-            borderRadius: '8px',
-            textAlign: 'center'
-          }}>
-            <h3 style={{ margin: '0 0 10px 0', fontSize: '2em' }}>💎</h3>
-            <h2 style={{ margin: '0 0 5px 0' }}>{formatRupiah(dashboardData.totalRevenue)}</h2>
-            <p style={{ margin: 0, opacity: 0.9 }}>Total Pendapatan</p>
-          </div>
-
-          <div style={{
-            background: '#f39c12',
-            color: 'white',
-            padding: '20px',
-            borderRadius: '8px',
-            textAlign: 'center'
-          }}>
-            <h3 style={{ margin: '0 0 10px 0', fontSize: '2em' }}>📦</h3>
-            <h2 style={{ margin: '0 0 5px 0' }}>{dashboardData.lowStockItems.length}</h2>
-            <p style={{ margin: 0, opacity: 0.9 }}>Produk Stok Rendah</p>
-          </div>
-        </div>
-
-        {/* Charts Section */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: '2fr 1fr',
-          gap: '20px',
-          marginBottom: '30px'
-        }}>
-          {/* Sales Chart */}
-          <div style={{
-            background: 'white',
-            padding: '20px',
-            borderRadius: '8px',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-          }}>
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: '20px'
-            }}>
-              <h3 style={{ margin: 0 }}>{getChartTitle()}</h3>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button
-                  onClick={() => setSelectedChart('sales')}
-                  style={{
-                    padding: '6px 12px',
-                    border: 'none',
-                    borderRadius: '4px',
-                    background: selectedChart === 'sales' ? '#3498db' : '#ecf0f1',
-                    color: selectedChart === 'sales' ? 'white' : '#333',
-                    cursor: 'pointer',
-                    fontSize: '12px'
-                  }}
-                >
-                  Pendapatan
-                </button>
-                <button
-                  onClick={() => setSelectedChart('transactions')}
-                  style={{
-                    padding: '6px 12px',
-                    border: 'none',
-                    borderRadius: '4px',
-                    background: selectedChart === 'transactions' ? '#e74c3c' : '#ecf0f1',
-                    color: selectedChart === 'transactions' ? 'white' : '#333',
-                    cursor: 'pointer',
-                    fontSize: '12px'
-                  }}
-                >
-                  Transaksi
-                </button>
-              </div>
+        <Card className="bg-gradient-to-br from-green-500/10 to-transparent">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardDescription>Total Transaksi</CardDescription>
+            <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{dashboardData.totalTransactions}</div>
+            <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+              <TrendingUp className="h-3 w-3 text-green-500" />
+              <span className="text-green-500">+{calculateGrowth(dashboardData.totalTransactions, 'transactions')}%</span>
+              <span>dari periode sebelumnya</span>
             </div>
-            <SimpleChart data={dashboardData.salesChart} type={selectedChart} />
-          </div>
+          </CardContent>
+        </Card>
 
-          {/* Top Products */}
-          <div style={{
-            background: 'white',
-            padding: '20px',
-            borderRadius: '8px',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-          }}>
-            <h3 style={{ margin: '0 0 20px 0' }}>🏆 Produk Terlaris</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {dashboardData.topProducts.slice(0, 5).map((product, index) => (
-                <div key={index} style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '12px',
-                  background: '#f8f9fa',
-                  borderRadius: '6px'
-                }}>
-                  <div>
-                    <div style={{ fontWeight: 'bold', fontSize: '14px' }}>
-                      {index + 1}. {product.name}
+        <Card className="bg-gradient-to-br from-purple-500/10 to-transparent">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardDescription>Total Pendapatan</CardDescription>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatRupiah(dashboardData.totalRevenue)}</div>
+            <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+              <span>Akumulasi seluruh transaksi</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-orange-500/10 to-transparent">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardDescription>Stok Rendah</CardDescription>
+            <AlertTriangle className="h-4 w-4 text-orange-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{dashboardData.lowStockItems.length}</div>
+            <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+              <span>Produk perlu restock</span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Chart Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Tren Penjualan</CardTitle>
+          <CardDescription>Grafik pendapatan {selectedPeriod === 'today' ? 'per jam hari ini' : getPeriodText().toLowerCase()}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={dashboardData.salesChart} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                <XAxis dataKey="date" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
+                <YAxis tick={{ fontSize: 12 }} tickLine={false} axisLine={false} tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`} />
+                <RechartsTooltip content={({ active, payload, label }) => {
+                  if (active && payload && payload.length) {
+                    return (
+                      <div className="bg-background border rounded-lg shadow-lg p-3">
+                        <p className="font-medium">{label}</p>
+                        <p className="text-sm text-muted-foreground">Revenue: {formatRupiah(payload[0].value)}</p>
+                        <p className="text-sm text-muted-foreground">Transaksi: {payload[0].payload.transactions}</p>
+                      </div>
+                    );
+                  }
+                  return null;
+                }} />
+                <Area type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" fillOpacity={1} fill="url(#colorRevenue)" strokeWidth={2} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Bottom Grid */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {/* Top Products */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Produk Terlaris</CardTitle>
+            <CardDescription>Top 5 produk periode ini</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {dashboardData.topProducts.map((product, i) => (
+                <div key={i} className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium ${i === 0 ? 'bg-yellow-500/20 text-yellow-600' : i === 1 ? 'bg-gray-300/20 text-gray-600' : i === 2 ? 'bg-orange-500/20 text-orange-600' : 'bg-muted text-muted-foreground'}`}>
+                      {i + 1}
                     </div>
-                    <div style={{ fontSize: '12px', color: '#666' }}>
-                      {product.quantity} terjual
+                    <div>
+                      <p className="text-sm font-medium leading-none">{product.name}</p>
+                      <p className="text-xs text-muted-foreground">{product.quantity} terjual</p>
                     </div>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontWeight: 'bold', color: '#27ae60' }}>
-                      {formatRupiah(product.revenue)}
-                    </div>
-                  </div>
+                  <div className="text-sm font-medium">{formatRupiah(product.revenue)}</div>
                 </div>
               ))}
               {dashboardData.topProducts.length === 0 && (
-                <p style={{ textAlign: 'center', color: '#666', margin: '20px 0' }}>
-                  Belum ada data penjualan
-                </p>
+                <p className="text-sm text-muted-foreground text-center py-4">Belum ada data</p>
               )}
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
-        {/* Tables Section */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: '20px',
-          marginBottom: '30px'
-        }}>
-          {/* Recent Transactions */}
-          <div style={{
-            background: 'white',
-            padding: '20px',
-            borderRadius: '8px',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-          }}>
-            <h3 style={{ margin: '0 0 20px 0' }}>🕐 Transaksi Terbaru</h3>
-            <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
-              {dashboardData.recentTransactions.map((transaction, index) => (
-                <div key={transaction.id} style={{
-                  padding: '12px',
-                  borderBottom: '1px solid #ecf0f1',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}>
+        {/* Recent Transactions */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Transaksi Terbaru</CardTitle>
+            <CardDescription>10 transaksi terakhir</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3 max-h-[300px] overflow-y-auto">
+              {dashboardData.recentTransactions.map((tr) => (
+                <div key={tr.id} className="flex items-center justify-between py-2 border-b last:border-0">
                   <div>
-                    <div style={{ fontWeight: 'bold', fontSize: '14px' }}>
-                      {transaction.transaction_number}
-                    </div>
-                    <div style={{ fontSize: '12px', color: '#666' }}>
-                      {transaction.customer_name} • {transaction.users?.full_name}
-                    </div>
-                    <div style={{ fontSize: '11px', color: '#999' }}>
-                      {formatDate(transaction.created_at)}
-                    </div>
+                    <p className="text-sm font-medium">{tr.transaction_number}</p>
+                    <p className="text-xs text-muted-foreground">{tr.customer_name}</p>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontWeight: 'bold', color: '#27ae60' }}>
-                      {formatRupiah(transaction.total_amount)}
-                    </div>
-                    <div style={{ fontSize: '11px', color: '#666' }}>
-                      {transaction.payment_method}
-                    </div>
+                  <div className="text-right">
+                    <p className="text-sm font-medium">{formatRupiah(tr.total_amount)}</p>
+                    <Badge variant="outline" className="text-xs">{tr.payment_method}</Badge>
                   </div>
                 </div>
               ))}
               {dashboardData.recentTransactions.length === 0 && (
-                <p style={{ textAlign: 'center', color: '#666', margin: '20px 0' }}>
-                  Belum ada transaksi
-                </p>
+                <p className="text-sm text-muted-foreground text-center py-4">Belum ada transaksi</p>
               )}
             </div>
-          </div>
+          </CardContent>
+        </Card>
 
-          {/* Low Stock Alert */}
-          <div style={{
-            background: 'white',
-            padding: '20px',
-            borderRadius: '8px',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-          }}>
-            <h3 style={{ margin: '0 0 20px 0' }}>⚠️ Stok Rendah</h3>
-            <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
-              {dashboardData.lowStockItems.map((item, index) => (
-                <div key={index} style={{
-                  padding: '12px',
-                  borderBottom: '1px solid #ecf0f1',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}>
-                  <div>
-                    <div style={{ fontWeight: 'bold', fontSize: '14px' }}>
-                      {item.name}
-                    </div>
-                    <div style={{ fontSize: '12px', color: '#666' }}>
-                      {formatRupiah(item.price)}
-                    </div>
+        {/* Low Stock & Employee Stats */}
+        <div className="space-y-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Stok Rendah</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {dashboardData.lowStockItems.slice(0, 3).map((item, i) => (
+                  <div key={i} className="flex items-center justify-between">
+                    <span className="text-sm">{item.name}</span>
+                    <Badge variant={item.stock === 0 ? 'destructive' : 'warning'} className="text-xs">
+                      {item.stock} sisa
+                    </Badge>
                   </div>
-                  <div style={{
-                    padding: '4px 8px',
-                    borderRadius: '4px',
-                    background: item.stock === 0 ? '#e74c3c' : item.stock <= 5 ? '#f39c12' : '#f39c12',
-                    color: 'white',
-                    fontSize: '12px',
-                    fontWeight: 'bold'
-                  }}>
-                    {item.stock} tersisa
-                  </div>
-                </div>
-              ))}
-              {dashboardData.lowStockItems.length === 0 && (
-                <p style={{ textAlign: 'center', color: '#666', margin: '20px 0' }}>
-                  Semua produk stok aman
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Employee Performance */}
-        {dashboardData.employeeStats.length > 0 && (
-          <div style={{
-            background: 'white',
-            padding: '20px',
-            borderRadius: '8px',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-            marginBottom: '30px'
-          }}>
-            <h3 style={{ margin: '0 0 20px 0' }}>👥 Performa Karyawan</h3>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-              gap: '15px'
-            }}>
-              {dashboardData.employeeStats.map((employee, index) => (
-                <div key={index} style={{
-                  padding: '15px',
-                  background: '#f8f9fa',
-                  borderRadius: '8px',
-                  textAlign: 'center'
-                }}>
-                  <div style={{ fontSize: '24px', marginBottom: '8px' }}>
-                    {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '👤'}
-                  </div>
-                  <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
-                    {employee.name}
-                  </div>
-                  <div style={{ fontSize: '14px', color: '#27ae60', fontWeight: 'bold' }}>
-                    {formatRupiah(employee.revenue)}
-                  </div>
-                  <div style={{ fontSize: '12px', color: '#666' }}>
-                    {employee.transactions} transaksi
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Realtime Debug Panel */}
-        {process.env.NODE_ENV === 'development' && (
-          <div style={{
-            background: '#2c3e50',
-            color: 'white',
-            padding: '20px',
-            borderRadius: '8px',
-            marginBottom: '20px'
-          }}>
-            <h3 style={{ margin: '0 0 15px 0', color: '#ecf0f1' }}>🐛 Debug Realtime</h3>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'auto 1fr',
-              gap: '10px',
-              alignItems: 'center',
-              marginBottom: '15px'
-            }}>
-              <span>Status:</span>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}>
-                <div style={{
-                  width: '8px',
-                  height: '8px',
-                  borderRadius: '50%',
-                  background: isRealTimeConnected ? '#27ae60' : '#e74c3c',
-                  animation: isRealTimeConnected ? 'pulse 2s infinite' : 'none'
-                }}></div>
-                <span style={{ color: isRealTimeConnected ? '#27ae60' : '#e74c3c', fontWeight: 'bold' }}>
-                  {isRealTimeConnected ? 'CONNECTED' : 'DISCONNECTED'}
-                </span>
+                ))}
+                {dashboardData.lowStockItems.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center">Semua stok aman</p>
+                )}
               </div>
-              <span>Last Update:</span>
-              <span style={{ fontFamily: 'monospace' }}>
-                {lastUpdate.toLocaleString('id-ID')}
-              </span>
-            </div>
-            
-            <div style={{ marginBottom: '10px', fontWeight: 'bold' }}>
-              Recent Events ({realtimeEvents.length}/10):
-            </div>
-            <div style={{
-              maxHeight: '150px',
-              overflowY: 'auto',
-              background: '#34495e',
-              padding: '10px',
-              borderRadius: '4px',
-              fontFamily: 'monospace',
-              fontSize: '12px'
-            }}>
-              {realtimeEvents.length === 0 ? (
-                <div style={{ color: '#7f8c8d', fontStyle: 'italic' }}>
-                  Menunggu event realtime...
-                </div>
-              ) : (
-                realtimeEvents.map((event) => (
-                  <div key={event.id} style={{ marginBottom: '5px' }}>
-                    <span style={{ color: '#95a5a6' }}>
-                      [{event.timestamp.toLocaleTimeString('id-ID')}]
-                    </span>{' '}
-                    <span style={{ color: '#f39c12' }}>{event.event}</span>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Top Karyawan</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {dashboardData.employeeStats.slice(0, 3).map((emp, i) => (
+                  <div key={i} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">{i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}</span>
+                      <span className="text-sm">{emp.name}</span>
+                    </div>
+                    <span className="text-sm font-medium">{formatRupiah(emp.revenue)}</span>
                   </div>
-                ))
-              )}
-            </div>
-          </div>
-        )}
+                ))}
+                {dashboardData.employeeStats.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center">Belum ada data</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );
 };
 
-export default Dashboard; 
+export default Dashboard;

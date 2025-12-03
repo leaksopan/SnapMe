@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import SnapMeLogo, { SnapMeIcon } from './SnapMeLogo';
+import { cn } from '../lib/utils';
+import { Button } from './ui/button';
+import { Avatar, AvatarFallback } from './ui/avatar';
+import { Separator } from './ui/separator';
+import { ScrollArea } from './ui/scroll-area';
 import { getAvailablePages } from '../utils/permissions';
 
 const Navigation = ({ currentPage, setCurrentPage, user, userPermissions, isOpen, setIsOpen, onLogout }) => {
   const [availablePages, setAvailablePages] = useState([]);
 
-  // Get available pages when user or permissions change
   useEffect(() => {
     if (user) {
       const pages = getAvailablePages(user, userPermissions || {});
@@ -13,183 +16,202 @@ const Navigation = ({ currentPage, setCurrentPage, user, userPermissions, isOpen
     }
   }, [user, userPermissions]);
 
-  const filteredPages = availablePages;
-
   return (
-    <>
+    <div className="dark">
       {/* Sidebar */}
-      <div style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        height: '100vh',
-        width: isOpen ? '280px' : '70px',
-        background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 50%, #1d4ed8 100%)',
-        transition: 'width 0.3s ease',
-        zIndex: 1000,
-        boxShadow: '2px 0 10px rgba(37, 99, 235, 0.2)',
-        display: 'flex',
-        flexDirection: 'column'
-      }}>
+      <div
+        className={cn(
+          "fixed top-0 left-0 h-screen bg-background border-r border-border flex flex-col transition-all duration-300 z-50",
+          isOpen ? "w-64" : "w-16"
+        )}
+      >
         {/* Header */}
-        <div style={{
-          padding: '20px',
-          borderBottom: '1px solid #3b82f6',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between'
-        }}>
+        <div className="flex items-center justify-between p-4 border-b border-border">
           {isOpen ? (
-            <SnapMeLogo size="medium" variant="horizontal" showText={true} />
+            <div className="flex items-center gap-2">
+              <img src="/stiker logo snapme.png" alt="SnapMe" className="w-8 h-8 object-contain" />
+              <span className="font-semibold text-foreground">SnapMe</span>
+            </div>
           ) : (
-            <SnapMeIcon size="32px" />
+            <img src="/stiker logo snapme.png" alt="SnapMe" className="w-8 h-8 object-contain mx-auto" />
           )}
-          <button
-            onClick={() => setIsOpen(!isOpen)}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: 'white',
-              fontSize: '1.2rem',
-              cursor: 'pointer',
-              padding: '5px',
-              borderRadius: '4px',
-              transition: 'background 0.2s ease'
-            }}
-            onMouseEnter={(e) => e.target.style.background = 'rgba(255,255,255,0.1)'}
-            onMouseLeave={(e) => e.target.style.background = 'transparent'}
-          >
-            {isOpen ? '◀' : '▶'}
-          </button>
+          {isOpen && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsOpen(false)}
+              className="h-8 w-8 text-foreground"
+            >
+              <ChevronLeftIcon />
+            </Button>
+          )}
         </div>
 
         {/* User Info */}
-        <div style={{
-          padding: '15px 20px',
-          borderBottom: '1px solid #3b82f6',
-          color: 'white'
-        }}>
-          {isOpen ? (
-            <div>
-              <div style={{ fontSize: '0.8rem', opacity: 0.8, marginBottom: '8px' }}>
-                {new Date().toLocaleDateString("id-ID", {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                })}
+        <div className="p-4 border-b border-border">
+          <div className={cn("flex items-center gap-3", !isOpen && "justify-center")}>
+            <Avatar className="h-9 w-9">
+              <AvatarFallback className="bg-primary/10 text-primary text-sm">
+                {user?.full_name?.charAt(0) || 'U'}
+              </AvatarFallback>
+            </Avatar>
+            {isOpen && (
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-foreground truncate">{user?.full_name}</p>
+                <p className="text-xs text-muted-foreground">
+                  {user?.role === 'admin' ? 'Administrator' : 'Kasir'}
+                </p>
               </div>
-              <div style={{ fontSize: '0.9rem', fontWeight: '600' }}>
-                👤 {user.full_name}
-              </div>
-              <div style={{ fontSize: '0.8rem', opacity: 0.8, marginTop: '2px', marginBottom: '10px' }}>
-                {user.role === 'admin' ? '👑 Administrator' : '👨‍💼 Kasir'}
-              </div>
-              <button
-                onClick={onLogout}
-                style={{
-                  width: '100%',
-                  background: '#dc2626',
-                  color: 'white',
-                  border: 'none',
-                  padding: '6px 12px',
-                  borderRadius: '4px',
-                  fontSize: '0.8rem',
-                  cursor: 'pointer',
-                  transition: 'background 0.2s ease'
-                }}
-                onMouseEnter={(e) => e.target.style.background = '#b91c1c'}
-                onMouseLeave={(e) => e.target.style.background = '#dc2626'}
-              >
-                🚪 Logout
-              </button>
-            </div>
-          ) : (
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '1.5rem' }}>👤</div>
-            </div>
+            )}
+          </div>
+          {isOpen && (
+            <p className="text-xs text-muted-foreground mt-3">
+              {new Date().toLocaleDateString("id-ID", {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+              })}
+            </p>
           )}
         </div>
 
         {/* Navigation Menu */}
-        <div style={{ flex: 1, padding: '20px 0' }}>
-          {filteredPages.map(page => (
-            <button
-              key={page.key}
-              onClick={() => setCurrentPage(page.key)}
-              style={{
-                width: '100%',
-                background: currentPage === page.key ? 'rgba(59, 130, 246, 0.3)' : 'transparent',
-                border: 'none',
-                color: 'white',
-                padding: isOpen ? '15px 20px' : '15px 0',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                display: 'flex',
-                alignItems: 'center',
-                gap: isOpen ? '15px' : '0',
-                justifyContent: isOpen ? 'flex-start' : 'center',
-                borderLeft: currentPage === page.key ? '4px solid #60a5fa' : '4px solid transparent',
-                fontSize: '0.9rem'
-              }}
-              onMouseEnter={(e) => {
-                if (currentPage !== page.key) {
-                  e.target.style.background = 'rgba(255,255,255,0.1)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (currentPage !== page.key) {
-                  e.target.style.background = 'transparent';
-                }
-              }}
-            >
-              <span style={{ fontSize: '1.2rem' }}>{page.icon}</span>
-              {isOpen && (
-                <div style={{ textAlign: 'left' }}>
-                  <div style={{ fontWeight: '600' }}>{page.name}</div>
-                  <div style={{ fontSize: '0.7rem', opacity: 0.8 }}>
-                    {page.description}
-                  </div>
-                </div>
-              )}
-            </button>
-          ))}
-        </div>
+        <ScrollArea className="flex-1 py-2">
+          <div className="px-2 space-y-1">
+            {availablePages.map(page => (
+              <Button
+                key={page.key}
+                variant={currentPage === page.key ? "secondary" : "ghost"}
+                className={cn(
+                  "w-full justify-start gap-3 h-10 text-foreground",
+                  !isOpen && "justify-center px-2",
+                  currentPage === page.key && "bg-secondary"
+                )}
+                onClick={() => setCurrentPage(page.key)}
+              >
+                <NavIcon name={page.icon} />
+                {isOpen && <span className="text-sm">{page.name}</span>}
+              </Button>
+            ))}
+          </div>
+        </ScrollArea>
+
+        <Separator />
 
         {/* Footer */}
-        <div style={{
-          padding: '20px',
-          borderTop: '1px solid #3b82f6',
-          color: 'white'
-        }}>
-          {isOpen ? (
-            <div style={{ fontSize: '0.8rem', opacity: 0.8, textAlign: 'center' }}>
-              © 2024 SnapMe Studio
-            </div>
-          ) : (
-            <div style={{ textAlign: 'center', fontSize: '1rem' }}>
-              ©
-            </div>
-          )}
+        <div className="p-2">
+          <Button
+            variant="ghost"
+            className={cn(
+              "w-full justify-start gap-3 h-10 text-destructive hover:text-destructive hover:bg-destructive/10",
+              !isOpen && "justify-center px-2"
+            )}
+            onClick={onLogout}
+          >
+            <LogoutIcon />
+            {isOpen && <span className="text-sm">Logout</span>}
+          </Button>
+        </div>
+
+        {/* Toggle button when collapsed */}
+        <div className={cn("p-2 border-t border-border", isOpen && "hidden")}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsOpen(true)}
+            className="w-full h-8 text-foreground"
+          >
+            <ChevronRightIcon />
+          </Button>
         </div>
       </div>
-
-      {/* Overlay for mobile */}
-      {isOpen && window.innerWidth <= 768 && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100vw',
-            height: '100vh',
-            background: 'rgba(0,0,0,0.5)',
-            zIndex: 999
-          }}
-          onClick={() => setIsOpen(false)}
-        />
-      )}
-    </>
+    </div>
   );
 };
 
-export default Navigation; 
+// Icons
+const ChevronLeftIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="m15 18-6-6 6-6" />
+  </svg>
+);
+
+const ChevronRightIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="m9 18 6-6-6-6" />
+  </svg>
+);
+
+const LogoutIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+    <polyline points="16 17 21 12 16 7" />
+    <line x1="21" x2="9" y1="12" y2="12" />
+  </svg>
+);
+
+const SnapMeIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
+    <circle cx="12" cy="13" r="3" />
+  </svg>
+);
+
+// Navigation Icons
+const NavIcon = ({ name }) => {
+  const icons = {
+    wallet: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1" />
+        <path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4" />
+      </svg>
+    ),
+    chart: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 3v18h18" />
+        <path d="m19 9-5 5-4-4-3 3" />
+      </svg>
+    ),
+    history: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+        <path d="M3 3v5h5" />
+        <path d="M12 7v5l4 2" />
+      </svg>
+    ),
+    package: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="m7.5 4.27 9 5.15" />
+        <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" />
+        <path d="m3.3 7 8.7 5 8.7-5" />
+        <path d="M12 22V12" />
+      </svg>
+    ),
+    calendar: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M8 2v4" />
+        <path d="M16 2v4" />
+        <rect width="18" height="18" x="3" y="4" rx="2" />
+        <path d="M3 10h18" />
+      </svg>
+    ),
+    camera: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
+        <circle cx="12" cy="13" r="3" />
+      </svg>
+    ),
+    users: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      </svg>
+    ),
+  };
+  return icons[name] || null;
+};
+
+export default Navigation;
