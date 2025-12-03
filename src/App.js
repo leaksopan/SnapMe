@@ -26,7 +26,7 @@ function App() {
       kasir: "Kasir - SnapMe",
       dashboard: "Dashboard - SnapMe",
       history: "Riwayat Transaksi - SnapMe",
-      stok: "Manajemen Stok - SnapMe",
+      stok: "Manajemen Produk - SnapMe",
       reservasi: "Reservasi Online - SnapMe",
       claim_photo: "Claim Photo - SnapMe",
       karyawan: "Manajemen Karyawan - SnapMe",

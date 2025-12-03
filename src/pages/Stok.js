@@ -237,7 +237,7 @@ const Stok = ({ user, onLogout }) => {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold flex items-center gap-2"><Package className="w-8 h-8" /> Manajemen Stok</h1>
+            <h1 className="text-3xl font-bold flex items-center gap-2"><Package className="w-8 h-8" /> Manajemen Produk</h1>
             <p className="text-muted-foreground">Kelola item dan inventaris</p>
           </div>
           <div className="flex items-center gap-4">
