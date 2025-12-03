@@ -5,11 +5,13 @@ import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
+import { useTheme, THEMES } from "../contexts/ThemeContext";
 
 const Login = ({ onLogin }) => {
   const [loginForm, setLoginForm] = useState({ username: "", password: "" });
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const { theme, toggleTheme } = useTheme();
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -42,7 +44,16 @@ const Login = ({ onLogin }) => {
   };
 
   return (
-    <div className="dark">
+    <div className={theme}>
+      {/* Theme Switcher */}
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={toggleTheme}
+        className="fixed top-4 right-4 z-50 h-10 w-10 rounded-full bg-background/80 backdrop-blur-sm border shadow-sm"
+      >
+        <span className="text-lg">{THEMES[theme]?.icon}</span>
+      </Button>
       <div className="bg-muted flex min-h-svh flex-col items-center justify-center p-6 md:p-10">
         <div className="w-full max-w-sm md:max-w-4xl">
           <div className={cn("flex flex-col gap-6")}>

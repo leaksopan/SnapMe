@@ -177,7 +177,7 @@ const Kasir = ({ user }) => {
   };
 
   return (
-    <div className="dark h-screen flex flex-col bg-background">
+    <div className="h-screen flex flex-col bg-background">
       {/* Price Modal */}
       {showPriceInput && (
         <PriceModal

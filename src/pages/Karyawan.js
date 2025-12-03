@@ -178,7 +178,7 @@ const Karyawan = ({ user }) => {
   const kasirUsers = users.filter((u) => u.role === "kasir");
 
   return (
-    <div className="dark h-screen flex flex-col bg-background">
+    <div className="h-screen flex flex-col bg-background">
       <div className="flex-1 p-4 overflow-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">

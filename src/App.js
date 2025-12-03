@@ -1,6 +1,7 @@
 import React, { useState, lazy, Suspense, useEffect } from "react";
 import "./App.css";
 import { loadUserPermissions, hasModuleAccess } from "./utils/permissions";
+import { ThemeProvider, useTheme } from "./contexts/ThemeContext";
 
 // Import page components - lazy load untuk optimasi
 import Login from "./pages/Login";
@@ -175,7 +176,25 @@ function App() {
   };
 
   return (
-    <div className="dark flex min-h-screen bg-background">
+    <AppContent
+      currentPage={currentPage}
+      setCurrentPage={setCurrentPage}
+      user={user}
+      userPermissions={userPermissions}
+      sidebarOpen={sidebarOpen}
+      setSidebarOpen={setSidebarOpen}
+      onLogout={handleLogout}
+      renderPage={renderPage}
+    />
+  );
+}
+
+// Separate component to use theme context
+function AppContent({ currentPage, setCurrentPage, user, userPermissions, sidebarOpen, setSidebarOpen, onLogout, renderPage }) {
+  const { theme } = useTheme();
+
+  return (
+    <div className={`${theme} flex min-h-screen bg-background`}>
       <Navigation
         currentPage={currentPage}
         setCurrentPage={setCurrentPage}
@@ -183,7 +202,7 @@ function App() {
         userPermissions={userPermissions}
         isOpen={sidebarOpen}
         setIsOpen={setSidebarOpen}
-        onLogout={handleLogout}
+        onLogout={onLogout}
       />
       <div
         className="w-full transition-all duration-300"
@@ -195,4 +214,12 @@ function App() {
   );
 }
 
-export default App;
+function AppWrapper() {
+  return (
+    <ThemeProvider>
+      <App />
+    </ThemeProvider>
+  );
+}
+
+export default AppWrapper;

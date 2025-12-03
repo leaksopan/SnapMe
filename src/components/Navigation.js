@@ -5,9 +5,11 @@ import { Avatar, AvatarFallback } from './ui/avatar';
 import { Separator } from './ui/separator';
 import { ScrollArea } from './ui/scroll-area';
 import { getAvailablePages } from '../utils/permissions';
+import { useTheme, THEMES } from '../contexts/ThemeContext';
 
 const Navigation = ({ currentPage, setCurrentPage, user, userPermissions, isOpen, setIsOpen, onLogout }) => {
   const [availablePages, setAvailablePages] = useState([]);
+  const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
     if (user) {
@@ -17,7 +19,7 @@ const Navigation = ({ currentPage, setCurrentPage, user, userPermissions, isOpen
   }, [user, userPermissions]);
 
   return (
-    <div className="dark">
+    <div className={theme}>
       {/* Sidebar */}
       <div
         className={cn(
@@ -96,6 +98,23 @@ const Navigation = ({ currentPage, setCurrentPage, user, userPermissions, isOpen
             ))}
           </div>
         </ScrollArea>
+
+        <Separator />
+
+        {/* Theme Switcher */}
+        <div className="p-2">
+          <Button
+            variant="ghost"
+            className={cn(
+              "w-full justify-start gap-3 h-10 text-foreground hover:bg-accent",
+              !isOpen && "justify-center px-2"
+            )}
+            onClick={toggleTheme}
+          >
+            <span className="text-lg">{THEMES[theme]?.icon}</span>
+            {isOpen && <span className="text-sm">{THEMES[theme]?.name}</span>}
+          </Button>
+        </div>
 
         <Separator />
 
