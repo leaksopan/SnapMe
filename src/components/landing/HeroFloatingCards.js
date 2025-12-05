@@ -1,19 +1,43 @@
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+"use client";
+
 import Autoplay from "embla-carousel-autoplay";
 import { AnimatePresence, motion } from "motion/react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { supabase } from "../../supabaseClient";
 import { useIsMobile } from "../../hooks/useMediaQuery";
 import { cn } from "../../lib/utils";
-import { Carousel, CarouselContent, CarouselItem } from "../ui/carousel";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+} from "../ui/carousel";
 
 const HeroFloatingCards = () => {
-  const [photos, setPhotos] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [api, setApi] = useState();
   const [current, setCurrent] = useState(0);
-  const isMobile = useIsMobile();
+  const [photos, setPhotos] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const totalPhotos = 7;
+  const isMobile = useIsMobile();
+  const totalPhotos = 27;
+  const loopBackToIndex = 4; // Loop back to 5th photo (index 4)
+
+  useEffect(() => {
+    if (!api) return;
+
+    api.on("select", () => {
+      const selectedIndex = api.selectedScrollSnap();
+      setCurrent(selectedIndex);
+      
+      // Custom loop: when reaching near the end, jump to loopBackToIndex
+      const totalSlides = api.scrollSnapList().length;
+      if (selectedIndex >= totalSlides - 1) {
+        setTimeout(() => {
+          api.scrollTo(loopBackToIndex, false);
+        }, 2500);
+      }
+    });
+  }, [api]);
 
   useEffect(() => {
     const fetchPhotos = async () => {
@@ -41,16 +65,7 @@ const HeroFloatingCards = () => {
     fetchPhotos();
   }, []);
 
-  // Listen to carousel selection
-  useEffect(() => {
-    if (!api) return;
-
-    api.on("select", () => {
-      setCurrent(api.selectedScrollSnap());
-    });
-  }, [api]);
-
-  // Placeholder photos
+  // Placeholder photos - 27 unique photos
   const placeholderPhotos = [
     {
       id: "p1",
@@ -94,6 +109,126 @@ const HeroFloatingCards = () => {
       image_url:
         "https://images.unsplash.com/photo-1511895426328-dc8714191300?w=400&auto=format&fit=crop",
     },
+    {
+      id: "p8",
+      name: "Urban Style",
+      image_url:
+        "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400&auto=format&fit=crop",
+    },
+    {
+      id: "p9",
+      name: "Natural Light",
+      image_url:
+        "https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=400&auto=format&fit=crop",
+    },
+    {
+      id: "p10",
+      name: "Professional Headshot",
+      image_url:
+        "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&auto=format&fit=crop",
+    },
+    {
+      id: "p11",
+      name: "Candid Moment",
+      image_url:
+        "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&auto=format&fit=crop",
+    },
+    {
+      id: "p12",
+      name: "Lifestyle Shot",
+      image_url:
+        "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400&auto=format&fit=crop",
+    },
+    {
+      id: "p13",
+      name: "Elegant Portrait",
+      image_url:
+        "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400&auto=format&fit=crop",
+    },
+    {
+      id: "p14",
+      name: "Street Fashion",
+      image_url:
+        "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=400&auto=format&fit=crop",
+    },
+    {
+      id: "p15",
+      name: "Classic Beauty",
+      image_url:
+        "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400&auto=format&fit=crop",
+    },
+    {
+      id: "p16",
+      name: "Modern Portrait",
+      image_url:
+        "https://images.unsplash.com/photo-1552058544-f2b08422138a?w=400&auto=format&fit=crop",
+    },
+    {
+      id: "p17",
+      name: "Dramatic Light",
+      image_url:
+        "https://images.unsplash.com/photo-1504257432389-52343af06ae3?w=400&auto=format&fit=crop",
+    },
+    {
+      id: "p18",
+      name: "Casual Portrait",
+      image_url:
+        "https://images.unsplash.com/photo-1489424731084-a5d8b219a5bb?w=400&auto=format&fit=crop",
+    },
+    {
+      id: "p19",
+      name: "Studio Lighting",
+      image_url:
+        "https://images.unsplash.com/photo-1463453091185-61582044d556?w=400&auto=format&fit=crop",
+    },
+    {
+      id: "p20",
+      name: "Golden Hour",
+      image_url:
+        "https://images.unsplash.com/photo-1519699047748-de8e457a634e?w=400&auto=format&fit=crop",
+    },
+    {
+      id: "p21",
+      name: "Outdoor Session",
+      image_url:
+        "https://images.unsplash.com/photo-1507591064344-4c6ce005b128?w=400&auto=format&fit=crop",
+    },
+    {
+      id: "p22",
+      name: "Editorial Style",
+      image_url:
+        "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=400&auto=format&fit=crop",
+    },
+    {
+      id: "p23",
+      name: "Portrait Series",
+      image_url:
+        "https://images.unsplash.com/photo-1499952127939-9bbf5af6c51c?w=400&auto=format&fit=crop",
+    },
+    {
+      id: "p24",
+      name: "Beauty Shot",
+      image_url:
+        "https://images.unsplash.com/photo-1502823403499-6ccfcf4fb453?w=400&auto=format&fit=crop",
+    },
+    {
+      id: "p25",
+      name: "Monochrome Style",
+      image_url:
+        "https://images.unsplash.com/photo-1560250097-0b93528c311a?w=400&auto=format&fit=crop",
+    },
+    {
+      id: "p26",
+      name: "Expressive Art",
+      image_url:
+        "https://images.unsplash.com/photo-1487222477894-8943e31ef7b2?w=400&auto=format&fit=crop",
+    },
+    {
+      id: "p27",
+      name: "Studio Classic",
+      image_url:
+        "https://images.unsplash.com/photo-1528892952291-009c663ce843?w=400&auto=format&fit=crop",
+    },
   ];
 
   const displayPhotos =
@@ -101,19 +236,43 @@ const HeroFloatingCards = () => {
       ? photos.slice(0, totalPhotos)
       : placeholderPhotos;
 
-  // Hero228 rotation logic - 1:1
+  // Hero228 rotation logic - adjusted for better visibility
+  // current = LEFT card (rotated, scaled, translated right)
+  // current+1 = CENTER card (focused, no rotation)
+  // current+2 = RIGHT card (rotated, scaled, translated left)
   const getRotation = useCallback(
     (index) => {
       if (index === current)
-        return "md:-rotate-[25deg] md:translate-x-28 md:scale-[0.8] md:relative";
-      if (index === current + 1)
+        return "md:-rotate-[25deg] md:translate-x-28 md:scale-[0.85] md:relative";
+      if (index === current + 1) 
         return "md:rotate-0 md:z-10 md:relative md:scale-100";
       if (index === current + 2)
-        return "md:rotate-[25deg] md:-translate-x-28 md:scale-[0.8] md:relative";
+        return "md:rotate-[25deg] md:-translate-x-28 md:scale-[0.85] md:relative";
       return "";
     },
     [current]
   );
+
+  // Get the photo for an index, handling wrap-around for extra items
+  const getPhotoForIndex = useCallback(
+    (index) => {
+      if (index >= displayPhotos.length) {
+        // Wrap around for extra items at the end
+        const wrapIndex = index - displayPhotos.length;
+        return displayPhotos[wrapIndex] || displayPhotos[0];
+      }
+      return displayPhotos[index];
+    },
+    [displayPhotos]
+  );
+
+  // Get the display name for current slide
+  const getCurrentName = useCallback(() => {
+    // The CENTER card is at current + 1, so that's what we display
+    const centerIndex = current + 1;
+    const photo = getPhotoForIndex(centerIndex);
+    return photo?.name || "";
+  }, [current, getPhotoForIndex]);
 
   // Scrollbar bars animation - exactly like Hero228
   const scrollbarBars = useMemo(
@@ -153,6 +312,9 @@ const HeroFloatingCards = () => {
     );
   }
 
+  // Calculate total items: on mobile = photos only, on desktop = photos + 2 for seamless loop
+  const totalItems = isMobile ? displayPhotos.length : displayPhotos.length + 2;
+
   return (
     <div className="relative w-full flex flex-col items-center justify-center">
       <Carousel
@@ -166,22 +328,18 @@ const HeroFloatingCards = () => {
         setApi={setApi}
         opts={{
           align: "start",
-          loop: true,
+          loop: false,
         }}
       >
         <CarouselContent>
-          {Array.from({
-            length: isMobile ? displayPhotos.length : displayPhotos.length + 2,
-          }).map((_, index) => {
-            // Get the actual photo (handle wrap-around for desktop extra items)
-            const photoIndex = index % displayPhotos.length;
-            const photo = displayPhotos[photoIndex];
+          {Array.from({ length: totalItems }).map((_, index) => {
+            const photo = getPhotoForIndex(index);
 
             return (
               <CarouselItem key={index} className="my-10 md:basis-1/3">
                 <div
                   className={cn(
-                    "h-[280px] md:h-[380px] w-full transition-transform duration-500 ease-in-out",
+                    "h-[280px] md:h-[420px] w-full transition-transform duration-500 ease-in-out",
                     getRotation(index)
                   )}
                 >
@@ -221,7 +379,7 @@ const HeroFloatingCards = () => {
               exit={{ opacity: 0, y: -20, scale: 0.9, filter: "blur(5px)" }}
               transition={{ duration: 0.5 }}
             >
-              {displayPhotos[current % displayPhotos.length]?.name}
+              {getCurrentName()}
             </motion.p>
           </AnimatePresence>
           <div className="flex gap-1">{scrollbarBars}</div>
