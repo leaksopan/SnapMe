@@ -6,8 +6,9 @@ import { Card, CardContent } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { useTheme, THEMES } from "../contexts/ThemeContext";
+import { ArrowLeft } from "lucide-react";
 
-const Login = ({ onLogin }) => {
+const Login = ({ onLogin, onBackToLanding }) => {
   const [loginForm, setLoginForm] = useState({ username: "", password: "" });
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -45,6 +46,18 @@ const Login = ({ onLogin }) => {
 
   return (
     <div className={theme}>
+      {/* Back to Landing Button */}
+      {onBackToLanding && (
+        <Button
+          variant="ghost"
+          onClick={onBackToLanding}
+          className="fixed top-4 left-4 z-50 h-10 px-4 rounded-full bg-background/80 backdrop-blur-sm border shadow-sm flex items-center gap-2"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span className="hidden sm:inline">Kembali</span>
+        </Button>
+      )}
+
       {/* Theme Switcher */}
       <Button
         variant="ghost"

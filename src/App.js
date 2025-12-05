@@ -5,6 +5,7 @@ import { ThemeProvider, useTheme } from "./contexts/ThemeContext";
 
 // Import page components - lazy load untuk optimasi
 import Login from "./pages/Login";
+import Landing from "./pages/Landing";
 import Kasir from "./pages/Kasir";
 import Navigation from "./components/Navigation";
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -19,6 +20,7 @@ function App() {
   const [currentPage, setCurrentPage] = useState("kasir");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [userPermissions, setUserPermissions] = useState({});
+  const [showLogin, setShowLogin] = useState(false); // Track if showing login page
 
   // Update document title berdasarkan halaman aktif
   useEffect(() => {
@@ -67,10 +69,27 @@ function App() {
     setUser(null);
     setCurrentPage("kasir");
     setUserPermissions({});
+    setShowLogin(false); // Kembali ke landing setelah logout
   };
 
+  // Handle login click dari landing page
+  const handleLoginClick = () => {
+    setShowLogin(true);
+  };
+
+  // Handle back to landing dari login page
+  const handleBackToLanding = () => {
+    setShowLogin(false);
+  };
+
+  // Jika belum login
   if (!user) {
-    return <Login onLogin={handleLogin} />;
+    // Tampilkan login jika showLogin true
+    if (showLogin) {
+      return <Login onLogin={handleLogin} onBackToLanding={handleBackToLanding} />;
+    }
+    // Default tampilkan landing page
+    return <Landing onLoginClick={handleLoginClick} />;
   }
 
   const renderPage = () => {
