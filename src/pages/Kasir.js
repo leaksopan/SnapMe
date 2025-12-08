@@ -265,7 +265,7 @@ const Kasir = ({ user }) => {
         align: "center",
       });
       cursorY += 3.5;
-      doc.text("WA: 0813-1234-5678", 29, cursorY, { align: "center" });
+      doc.text("WA: 0859-2422-6805", 29, cursorY, { align: "center" });
       cursorY += 4.5;
       addDivider();
 
