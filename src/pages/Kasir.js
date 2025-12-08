@@ -372,7 +372,7 @@ const Kasir = ({ user }) => {
         align: "center",
       });
       cursorY += 3;
-      doc.text("Follow IG: @snapme.id • Kirim nota via WA", 29, cursorY, {
+      doc.text("Follow IG: @snapme_singaraja • Kirim nota via WA", 29, cursorY, {
         align: "center",
       });
       cursorY += 6;
