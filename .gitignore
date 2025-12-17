@@ -24,3 +24,8 @@ yarn-error.log*
 
 /penjualan
 
+/supabase_snapme_schema_backup
+
+todo.md
+supabase_snapme_schema_backup.sql
+

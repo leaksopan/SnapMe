@@ -8,10 +8,11 @@ const LandingNav = ({ onLoginClick }) => {
   const isMobile = useIsMobile();
 
   const navItems = [
-    { label: "Beranda", href: "#beranda" },
-    { label: "Paket", href: "#paket" },
-    { label: "Gallery", href: "#gallery" },
-    { label: "Kontak", href: "#kontak" },
+    { label: "Beranda", href: "/", isPage: true },
+    { label: "Paket", href: "/paket", isPage: true, comingSoon: true },
+    { label: "Gallery", href: "/gallery", isPage: true, comingSoon: true },
+    { label: "Claim Foto", href: "/claim-foto", isPage: true },
+    { label: "Kontak", href: "/kontak", isPage: true, comingSoon: true },
   ];
 
   return (
@@ -40,6 +41,14 @@ const LandingNav = ({ onLoginClick }) => {
                   <a
                     key={item.label}
                     href={item.href}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (item.comingSoon) {
+                        alert('Coming Soon! 🚀');
+                      } else {
+                        window.location.href = item.href;
+                      }
+                    }}
                     className="px-4 py-2 rounded-xl text-sm font-medium text-foreground/70 hover:text-foreground hover:bg-muted/50 transition-all"
                   >
                     {item.label}
@@ -90,7 +99,15 @@ const LandingNav = ({ onLoginClick }) => {
                   <a
                     key={item.label}
                     href={item.href}
-                    onClick={() => setMobileMenuOpen(false)}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setMobileMenuOpen(false);
+                      if (item.comingSoon) {
+                        alert('Coming Soon! 🚀');
+                      } else {
+                        window.location.href = item.href;
+                      }
+                    }}
                     className="block px-4 py-2.5 rounded-xl text-foreground/70 hover:bg-muted/50 hover:text-foreground transition-colors"
                   >
                     {item.label}

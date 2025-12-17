@@ -41,6 +41,7 @@ import {
 const Kasir = ({ user }) => {
   const [cart, setCart] = useState({});
   const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
   const [customerPayment, setCustomerPayment] = useState("");
   const [loading, setLoading] = useState(false);
@@ -79,13 +80,6 @@ const Kasir = ({ user }) => {
 
   const formatRupiah = (num) =>
     num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-
-  const getCurrentDate = () =>
-    new Date().toLocaleDateString("id-ID", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
 
   const loadItems = async () => {
     setItemsLoading(true);
@@ -135,6 +129,13 @@ const Kasir = ({ user }) => {
       })
       .filter(Boolean);
   }, [cart, items, fotogroupPrices]);
+
+  // Check if cart has studio/fotogroup item - untuk show customer phone input
+  const hasStudioItem = useMemo(() => {
+    return cartItems.some((item) =>
+      item.category === "studio" || item.category === "fotogroup"
+    );
+  }, [cartItems]);
 
   const totalAmount = useMemo(
     () => cartItems.reduce((sum, item) => sum + item.subtotal, 0),
@@ -270,35 +271,32 @@ const Kasir = ({ user }) => {
       addDivider();
 
       const transactionNumber = `TRX-${Date.now()}`;
-      const { data: transaction, error: transactionError } = await supabase
-        .from("transactions")
-        .insert({
-          transaction_number: transactionNumber,
-          customer_name: customerName,
-          payment_method: paymentMethod,
-          total_amount: totalAmount,
-          payment_amount: payment,
-          change_amount: change,
-          user_id: user.id,
-        })
-        .select()
-        .single();
-      if (transactionError) throw transactionError;
 
-      const transactionItems = cartItems.map((item) => ({
-        transaction_id: transaction.id,
+      // Single RPC call: transaction + items + photo folder (all in 1 database call)
+      const items = cartItems.map((item) => ({
         item_id: item.id,
         quantity: parseInt(item.qty),
         unit_price: parseFloat(item.effectivePrice || item.price),
         subtotal: parseFloat(item.subtotal),
       }));
-      const { error: itemsError } = await supabase
-        .from("transaction_items")
-        .insert(transactionItems);
-      if (itemsError) {
-        await supabase.from("transactions").delete().eq("id", transaction.id);
-        throw itemsError;
-      }
+
+      const { data: result, error: rpcError } = await supabase.rpc(
+        "complete_transaction_with_folder",
+        {
+          p_transaction_number: transactionNumber,
+          p_customer_name: customerName,
+          p_customer_phone: hasStudioItem ? customerPhone.trim() : "",
+          p_payment_method: paymentMethod,
+          p_total_amount: totalAmount,
+          p_payment_amount: payment,
+          p_change_amount: change,
+          p_user_id: user.id,
+          p_items: items,
+        }
+      );
+
+      if (rpcError) throw rpcError;
+      if (!result?.success) throw new Error(result?.error || "Transaction failed");
 
       addLabel("No. Nota", transactionNumber);
       addLabel("Tanggal", new Date().toLocaleString("id-ID"));
@@ -382,6 +380,7 @@ const Kasir = ({ user }) => {
       setCart({});
       setFotogroupPrices({});
       setCustomerName("");
+      setCustomerPhone("");
       setPaymentMethod("");
       setCustomerPayment("");
       alert("Transaksi berhasil!");
@@ -396,6 +395,7 @@ const Kasir = ({ user }) => {
     setCart({});
     setFotogroupPrices({});
     setShowPriceInput(null);
+    setCustomerPhone("");
     setCustomerPayment("");
   };
 
@@ -555,6 +555,21 @@ const Kasir = ({ user }) => {
                   placeholder="Masukkan nama..."
                 />
               </div>
+              {/* Customer Phone - only show when cart has studio item */}
+              {hasStudioItem && (
+                <div>
+                  <Label htmlFor="customerPhone">
+                    No. HP Customer{" "}
+                    <span className="text-muted-foreground text-xs">(untuk claim foto)</span>
+                  </Label>
+                  <Input
+                    id="customerPhone"
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value.replace(/[^0-9+\-\s]/g, ""))}
+                    placeholder="OPSIONAL"
+                  />
+                </div>
+              )}
               <div>
                 <Label>Metode Pembayaran</Label>
                 <DropdownMenu>
@@ -657,8 +672,8 @@ const Kasir = ({ user }) => {
                       {changeAmount < 0
                         ? `Kurang Rp ${formatRupiah(Math.abs(changeAmount))}`
                         : changeAmount === 0
-                        ? "Pas"
-                        : `Kembalian Rp ${formatRupiah(changeAmount)}`}
+                          ? "Pas"
+                          : `Kembalian Rp ${formatRupiah(changeAmount)}`}
                     </div>
                   )}
                 </>

@@ -1,4 +1,5 @@
 -- =========================================================
+-- UNTUK REALTIE AKSES MCP SUPABASE
 -- SNAPME SCHEMA BACKUP (NO DATA)
 -- Target: Supabase / PostgreSQL 15
 -- Langkah pakai:

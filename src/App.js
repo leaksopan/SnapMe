@@ -8,6 +8,7 @@ import Login from "./pages/Login";
 import Landing from "./pages/Landing";
 import Kasir from "./pages/Kasir";
 import Navigation from "./components/Navigation";
+import LandingClaimPhoto from "./pages/LandingClaimPhoto"; // Not lazy - untuk instant load
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const History = lazy(() => import("./pages/History"));
 const Stok = lazy(() => import("./pages/Stok"));
@@ -21,6 +22,15 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [userPermissions, setUserPermissions] = useState({});
   const [showLogin, setShowLogin] = useState(false); // Track if showing login page
+  const [showClaimPhoto, setShowClaimPhoto] = useState(false); // Track if showing claim photo page
+
+  // Check URL for claim-foto route on mount
+  useEffect(() => {
+    const path = window.location.pathname;
+    if (path === '/claim-foto' || path === '/claim-photo' || path === '/claim') {
+      setShowClaimPhoto(true);
+    }
+  }, []);
 
   // Update document title berdasarkan halaman aktif
   useEffect(() => {
@@ -84,6 +94,14 @@ function App() {
 
   // Jika belum login
   if (!user) {
+    // Tampilkan claim photo landing jika showClaimPhoto true
+    if (showClaimPhoto) {
+      return (
+        <ThemeProvider>
+          <LandingClaimPhoto />
+        </ThemeProvider>
+      );
+    }
     // Tampilkan login jika showLogin true
     if (showLogin) {
       return <Login onLogin={handleLogin} onBackToLanding={handleBackToLanding} />;
